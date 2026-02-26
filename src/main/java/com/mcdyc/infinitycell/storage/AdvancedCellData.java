@@ -1,11 +1,9 @@
-package com.example.modid.storage;
+package com.mcdyc.infinitycell.storage;
 
 import appeng.api.AEApi;
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEStack;
-import it.unimi.dsi.fastutil.Hash;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
-import it.unimi.dsi.fastutil.objects.Object2LongOpenCustomHashMap;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.world.storage.WorldSavedData;
@@ -18,24 +16,27 @@ import java.util.Map;
  * 完全抛弃 AE 自带的 IItemList 链表与慢速 HashMap，
  * 采用高性能 Object2LongOpenCustomHashMap 直接建立 `UUID` 到 `真实数据` 的映射库。
  */
-public class AdvancedCellData extends WorldSavedData {
+public class AdvancedCellData extends WorldSavedData
+{
 
-    public static class ChannelData<T extends IAEStack<T>> {
+    public static class ChannelData<T extends IAEStack<T>>
+    {
         public Object2LongMap<T> counts = new it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap<>();
         public long totalBytes = 0;
         public long totalTypes = 0;
         public long totalItemCount = 0;
 
         // 增量 NBT 缓存支持：避免每次保存都把几十万个物品重新转化一遍 NBT
-        private final it.unimi.dsi.fastutil.objects.Object2ObjectMap<T, NBTTagCompound> nbtCache = 
-            new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>();
+        private final it.unimi.dsi.fastutil.objects.Object2ObjectMap<T, NBTTagCompound> nbtCache =
+                new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>();
         private final java.util.Set<T> dirtyItems = new java.util.HashSet<>();
         private boolean isFullDirty = true; // 初次启动时需要全量重建缓存
 
         /**
          * 以 O(1) 性能存取海量物品
          */
-        public void modify(T stack, long deltaCount, long deltaBytes, long deltaTypes) {
+        public void modify(T stack, long deltaCount, long deltaBytes, long deltaTypes)
+        {
             long currentCount = counts.getLong(stack);
             long newCount = currentCount + deltaCount;
             if (newCount <= 0) {
@@ -54,7 +55,8 @@ public class AdvancedCellData extends WorldSavedData {
         /**
          * 增量计算当前频道的所有 NBT 列表
          */
-        public NBTTagList getOrUpdateNbtList() {
+        public NBTTagList getOrUpdateNbtList()
+        {
             if (isFullDirty) {
                 nbtCache.clear();
                 for (Object2LongMap.Entry<T> entry : counts.object2LongEntrySet()) {
@@ -86,17 +88,20 @@ public class AdvancedCellData extends WorldSavedData {
 
     private final Map<IStorageChannel<?>, ChannelData<?>> channels = new HashMap<>();
 
-    public AdvancedCellData(String name) {
+    public AdvancedCellData(String name)
+    {
         super(name);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends IAEStack<T>> ChannelData<T> getChannelData(IStorageChannel<T> channel) {
+    public <T extends IAEStack<T>> ChannelData<T> getChannelData(IStorageChannel<T> channel)
+    {
         return (ChannelData<T>) channels.computeIfAbsent(channel, c -> new ChannelData<T>());
     }
 
     @Override
-    public NBTTagCompound writeToNBT(NBTTagCompound nbt) {
+    public NBTTagCompound writeToNBT(NBTTagCompound nbt)
+    {
         NBTTagList channelList = new NBTTagList();
 
         for (Map.Entry<IStorageChannel<?>, ChannelData<?>> entry : channels.entrySet()) {
@@ -118,7 +123,8 @@ public class AdvancedCellData extends WorldSavedData {
     }
 
     @Override
-    public void readFromNBT(NBTTagCompound nbt) {
+    public void readFromNBT(NBTTagCompound nbt)
+    {
         channels.clear();
         NBTTagList channelList = nbt.getTagList("Channels", 10);
 
@@ -141,7 +147,8 @@ public class AdvancedCellData extends WorldSavedData {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends IAEStack<T>> void readChannelData(IStorageChannel<T> channel, NBTTagCompound channelNbt) {
+    private <T extends IAEStack<T>> void readChannelData(IStorageChannel<T> channel, NBTTagCompound channelNbt)
+    {
         ChannelData<T> data = getChannelData(channel);
         data.totalBytes = channelNbt.getLong("TotalBytes");
         data.totalTypes = channelNbt.getLong("TotalTypes");

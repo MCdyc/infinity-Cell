@@ -1,4 +1,4 @@
-package com.example.modid.storage;
+package com.mcdyc.infinitycell.storage;
 
 import appeng.api.config.AccessRestriction;
 import appeng.api.config.Actionable;
@@ -11,7 +11,7 @@ import appeng.api.storage.ISaveProvider;
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
-import com.example.modid.item.AdvancedCellItem;
+import com.mcdyc.infinitycell.item.AdvancedCellItem;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -88,18 +88,13 @@ public class AdvancedCellInventory<T extends IAEStack<T>> implements ICellInvent
     private AdvancedCellData getOrCreateData()
     {
         NBTTagCompound nbt = cellItem.getTagCompound();
-        if (nbt == null) {
-            nbt = new NBTTagCompound();
-            cellItem.setTagCompound(nbt);
+        if (nbt == null || !nbt.hasKey("disk_uuid")) {
+            // UUID 尚未分配（物品还没进入玩家背包），返回空数据
+            // UUID 将在 AdvancedCellItem.onUpdate() 中懒加载分配
+            return new AdvancedCellData("empty_no_uuid");
         }
 
-        String diskUuid;
-        if (!nbt.hasKey("disk_uuid")) {
-            diskUuid = UUID.randomUUID().toString();
-            nbt.setString("disk_uuid", diskUuid);
-        } else {
-            diskUuid = nbt.getString("disk_uuid");
-        }
+        String diskUuid = nbt.getString("disk_uuid");
 
         World overworld = DimensionManager.getWorld(0);
         if (overworld == null) {

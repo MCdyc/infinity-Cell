@@ -1,4 +1,4 @@
-package com.example.modid.item;
+package com.mcdyc.infinitycell.item;
 
 import appeng.api.AEApi;
 import appeng.api.storage.IMEInventoryHandler;
@@ -6,8 +6,11 @@ import appeng.api.storage.channels.IFluidStorageChannel;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.util.Platform;
 import net.minecraft.client.util.ITooltipFlag;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.entity.Entity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -15,9 +18,26 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class AdvancedCellItem extends Item
 {
+    /**
+     * 自定义创造模式物品栏标签，图标使用 64k 物品盘
+     */
+    public static final CreativeTabs CREATIVE_TAB = new CreativeTabs("infinitycell") {
+        @Override
+        @SideOnly(Side.CLIENT)
+        public ItemStack createIcon() {
+            // 从主类中已注册的磁盘列表中找到 64k 物品盘作为图标
+            for (AdvancedCellItem cell : com.mcdyc.infinitycell.InfinityCell.ADVANCED_CELLS) {
+                if (cell.tier == StorageTier.T_64K && cell.type == StorageType.ITEM) {
+                    return new ItemStack(cell);
+                }
+            }
+            return ItemStack.EMPTY;
+        }
+    };
 
     public enum StorageTier
     {
@@ -53,6 +73,7 @@ public class AdvancedCellItem extends Item
         this.type = type;
 
         this.setMaxStackSize(1);
+        this.setCreativeTab(CREATIVE_TAB);
 
         // 命名规则例如: item_cell_1k, fluid_cell_16384k, gas_cell_inf
         String capName = tier == StorageTier.INF ? "inf" : tier.kb + "k";
@@ -60,6 +81,25 @@ public class AdvancedCellItem extends Item
 
         this.setRegistryName(registryName);
         this.setTranslationKey(registryName);
+    }
+
+    /**
+     * 每 tick 检查：当物品在玩家背包中时，懒分配 UUID
+     * 这样创造模式物品栏里的物品不会提前获得 UUID
+     */
+    @Override
+    public void onUpdate(ItemStack stack, World worldIn, Entity entityIn, int itemSlot, boolean isSelected)
+    {
+        if (!worldIn.isRemote && stack.getCount() > 0) {
+            NBTTagCompound nbt = stack.getTagCompound();
+            if (nbt == null || !nbt.hasKey("disk_uuid")) {
+                if (nbt == null) {
+                    nbt = new NBTTagCompound();
+                    stack.setTagCompound(nbt);
+                }
+                nbt.setString("disk_uuid", UUID.randomUUID().toString());
+            }
+        }
     }
 
     /**
@@ -120,7 +160,8 @@ public class AdvancedCellItem extends Item
      * 所有对 MekEng 类的引用必须集中在这里，由调用方用 try-catch NoClassDefFoundError 包裹。
      */
     @SideOnly(Side.CLIENT)
-    private void addGasTooltip(appeng.api.storage.ICellInventoryHandler<?> cellInvHandler, List<String> tooltip) {
+    private void addGasTooltip(appeng.api.storage.ICellInventoryHandler<?> cellInvHandler, List<String> tooltip)
+    {
         appeng.api.storage.ICellInventory<?> cellInventory = cellInvHandler.getCellInv();
 
         // 只有在按下 Shift 或开启高级提示框时才显示具体内容
@@ -185,7 +226,6 @@ public class AdvancedCellItem extends Item
                 disks.add(new AdvancedCellItem(tier, StorageType.GAS));
             }
         }
-
         return disks;
     }
 }

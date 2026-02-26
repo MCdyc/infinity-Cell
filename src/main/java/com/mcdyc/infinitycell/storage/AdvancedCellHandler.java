@@ -1,4 +1,4 @@
-package com.example.modid.storage;
+package com.mcdyc.infinitycell.storage;
 
 import appeng.api.storage.ICellHandler;
 import appeng.api.storage.ICellInventoryHandler;
@@ -7,19 +7,22 @@ import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.channels.IFluidStorageChannel;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEStack;
-import com.example.modid.item.AdvancedCellItem;
+import com.mcdyc.infinitycell.item.AdvancedCellItem;
 import net.minecraft.item.ItemStack;
 
-public class AdvancedCellHandler implements ICellHandler {
+public class AdvancedCellHandler implements ICellHandler
+{
 
     @Override
-    public boolean isCell(ItemStack is) {
+    public boolean isCell(ItemStack is)
+    {
         return is != null && is.getItem() instanceof AdvancedCellItem;
     }
 
     @Override
     public <T extends IAEStack<T>> ICellInventoryHandler<T> getCellInventory(ItemStack is, ISaveProvider host,
-            IStorageChannel<T> channel) {
+                                                                             IStorageChannel<T> channel)
+    {
 
         if (!isCell(is)) return null;
 
@@ -40,12 +43,14 @@ public class AdvancedCellHandler implements ICellHandler {
     }
 
     @Override
-    public double cellIdleDrain(ItemStack is, ICellInventoryHandler handler) {
+    public double cellIdleDrain(ItemStack is, ICellInventoryHandler handler)
+    {
         return 0.5D; // 原版 64k 差不多也就吃耗电。我们设为固定小耗电
     }
 
     @Override
-    public int getStatusForCell(ItemStack is, ICellInventoryHandler handler) {
+    public int getStatusForCell(ItemStack is, ICellInventoryHandler handler)
+    {
         if (handler instanceof AdvancedCellInventory) {
             return ((AdvancedCellInventory<?>) handler).getStatusForCell();
         }
