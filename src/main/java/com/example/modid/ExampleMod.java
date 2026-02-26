@@ -22,9 +22,10 @@ import org.apache.logging.log4j.Logger;
 
 // AE2 总入口管理
 import appeng.api.AEApi;
-// 你自己辛辛苦苦刚写好的两个核心盘组件封装，分别对应物品壳和系统的遥感器
-import com.example.modid.item.ItemInfiniteCell;
-import com.example.modid.storage.InfiniteCellHandler;
+// 自己辛辛苦苦重写的真正的出厂模块
+import com.example.modid.item.AdvancedCellItem;
+import com.example.modid.storage.AdvancedCellHandler;
+import java.util.List;
 
 /**
  * 模组的唯一主类 —— 在服务器/客户端启动时 FML 首先会抓取和通电激活这里
@@ -37,15 +38,15 @@ public class ExampleMod {
     // 建立一个只属于我们自己的控制台日志打印播报员，这样报错的时候能清晰看到锅是出在这个名称前缀上
     public static final Logger LOGGER = LogManager.getLogger(Tags.MOD_NAME);
 
-    // 我们在这个类的最头上，提前将我们的那块没有任何功能的物品盘造出来，准备以后塞进注册表里
-    public static final Item ITEM_INFINITE_CELL = new ItemInfiniteCell();
+    // 利用工厂在启动期按需孵化所有 1K~INF 以及各气体流体的版本
+    public static final List<AdvancedCellItem> ADVANCED_CELLS = AdvancedCellItem.createAllDisks();
 
     /**
      * Pre-Init 阶段。这时候世界还没创生。多用来做配置文件的数据载入动作。
      */
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
-        LOGGER.info("你好，来自牛逼挂机无限版 AE 模组: {} !", Tags.MOD_NAME);
+        LOGGER.info("无限 AE 模组: {} !", Tags.MOD_NAME);
     }
 
     /**
@@ -54,10 +55,9 @@ public class ExampleMod {
      */
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
-        // 致残打击开始：我们将自己制作的非法磁盘遥感器 (CellHandler)，作为光荣的叛徒直接注册并且插进 AE2 的原生判断大楼中。
-        // 从这行代码生效起，以后任何盘在插进主世界的一瞬间，AE2 都会被迫先向我们的代码请求这到底是不是我们的盘。
-        AEApi.instance().registries().cell().addCellHandler(new InfiniteCellHandler());
-        LOGGER.info("成功强行挂载了无限大背包拦截安检门！");
+        // 注册高级别泛用容量和气体拦截安检门
+        AEApi.instance().registries().cell().addCellHandler(new AdvancedCellHandler());
+        LOGGER.info("成功挂载了 Advanced 多阶梯硬盘存取拦截安检门！");
     }
 
     /**
@@ -65,8 +65,23 @@ public class ExampleMod {
      */
     @SubscribeEvent
     public static void registerItems(RegistryEvent.Register<Item> event) {
-        // 当门开了的时候，我们把在文件头上准备好的这个 "infinite_cell" 扔给锻造局（Forge Registry）。
-        // 自此之后，游戏里用指令 /give @p XXX 或者在 JEI 里面都可以堂堂正正搜出这块盘的名字材质啦！
-        event.getRegistry().register(ITEM_INFINITE_CELL);
+        // 当门开了的时候，我们把在文件头上用工厂跑出来的所有型号（1k, 4k... inf的物品、流体、甚至是气体）硬盘一起抛到词典里
+        for (AdvancedCellItem cell : ADVANCED_CELLS) {
+            event.getRegistry().register(cell);
+        }
+    }
+
+    /**
+     * 模型注册阶段！在这里把咱们写好的 json 贴图文件强行绑定到每一个方块和物品身上
+     */
+    @SubscribeEvent
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    public static void registerModels(net.minecraftforge.client.event.ModelRegistryEvent event) {
+        for (AdvancedCellItem cell : ADVANCED_CELLS) {
+            net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
+                    cell, 0, 
+                    new net.minecraft.client.renderer.block.model.ModelResourceLocation(cell.getRegistryName(), "inventory")
+            );
+        }
     }
 }
