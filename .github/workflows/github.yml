@@ -1,0 +1,42 @@
+name: Build and Archive
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17' # 根据你的项目版本调整，1.12.2 建议用 8，1.18+ 用 17
+          distribution: 'zulu'
+          cache: gradle
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+        env:
+          # 某些模组在没有环境时编译会报错，这里可以传入参数跳过不必要的检查
+          CI_BUILD: true
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mod-Build-Output
+          # 路径通常指向 build/libs 下的所有 jar 包
+          # 如果只想上传主体文件，可以改为: build/libs/*-!(*-sources|*-dev).jar (需要开启扩展通配符)
+          path: build/libs/*.jar
+          # 设置保留天数（可选）
+          retention-days: 14
