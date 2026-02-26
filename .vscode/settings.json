@@ -1,0 +1,24 @@
+{
+    "java.import.gradle.java.home": "C:\\Users\\Star\\.jdks\\ms-25.0.1",
+    "java.import.gradle.enabled": true,
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-1.8",
+            "path": "C:\\Users\\Star\\.jdks\\azul-1.8.0_472",
+            "default": true
+        },
+        {
+            "name": "JavaSE-25",
+            "path": "C:\\Users\\Star\\.jdks\\ms-25.0.1"
+        },
+        {
+            "name": "JavaSE-21",
+            "path": "C:\\Users\\Star\\.jdks\\ms-21.0.9"
+        },
+        {
+            "name": "JavaSE-17",
+            "path": "C:\\Users\\Star\\.jdks\\ms-17.0.17"
+        }
+    ],
+}

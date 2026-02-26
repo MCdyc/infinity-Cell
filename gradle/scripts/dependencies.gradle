@@ -25,6 +25,19 @@ repositories {
             includeGroup 'maven.modrinth'
         }
     }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name 'CraftTweaker'
+                url = uri("https://maven.blamejared.com/")
+
+            }
+        }
+        filter {
+            includeGroup 'CraftTweaker2'
+        }
+    }
+
     mavenLocal() // Must be last for caching to work
 }
 
@@ -65,4 +78,23 @@ dependencies {
     // implementation ('com.google.code.gson:gson:2.8.6') {
     //     transitive = false
     // }
+    implementation("CraftTweaker2:CraftTweaker2-MC1120-Main:1.12-4.+")
+//    implementation(rfg.deobf(files("libs/modularmachinery-2.1.0-main.jar")))
+//    implementation(rfg.deobf(files("libs/MMCE-ComponentModelHider-1.1-dev.jar")))
+//    implementation(rfg.deobf(files("libs/resourceloader-1.5.3-main.jar")))
+//    implementation(rfg.deobf(files("libs/lumenized-1.0.3-dev.jar")))
+//    implementation(rfg.deobf(files("libs/NotEnoughEnergistics-1.12.2-2.0.7.jar")))
+    implementation(rfg.deobf("curse.maven:hei-557549:7515497")) 
+    implementation(rfg.deobf("curse.maven:theoneprobe-245211:2667280"))
+//    implementation(rfg.deobf(files("libs/FTBLib-5.4.7.2.jar")))
+//    implementation(rfg.deobf(files("libs/FTBUtilities-5.4.1.131.jar")))
+    implementation(rfg.deobf("maven.modrinth:ae2uel-extra:v1.0.5"))
+    implementation(rfg.deobf("curse.maven:fluidcraftforae2-623955:5751930"))
+//    implementation(rfg.deobf(files("libs/MekanismEnergistics-0.1.5.jar")))
+//    implementation(rfg.deobf(files("libs/nae2-1.6.4-dev.jar")))
+    implementation(rfg.deobf("curse.maven:codechickenlib-242818:2779848"))
+    implementation(rfg.deobf(files("libs/Mekanism-CE-Unofficial-All-9.9.1.221-dev.jar")))
+//    implementation(rfg.deobf(files("libs/geckolib-forge-1.12.2-3.0.31.jar")))
+//    implementation(rfg.deobf(files("libs/!configanytime-3.0.jar")))
+//    implementation(rfg.deobf(files("libs/CrazyAE-1.12.2-v0.6.0.2.jar")))
 }
