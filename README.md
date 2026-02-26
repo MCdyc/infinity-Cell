@@ -1,21 +1,54 @@
-## TemplateDevEnv
-_For Kotlin see [TemplateDevEnvKt](https://github.com/CleanroomMC/TemplateDevEnvKt)_
+# Infinity Cell
 
-Template workspace for modding Minecraft 1.12.2. Licensed under MIT, it is made for public use.
+**Minecraft 1.12.2** 的 Applied Energistics 2 附属模组，为 AE2 网络系统提供从 **1K 到无限容量** 的高性能多阶梯存储磁盘。
 
-This template runs on **Java 25**, **Gradle 9.2.1** + **[RetroFuturaGradle](https://github.com/GTNewHorizons/RetroFuturaGradle) 2.0.2** + **Forge 14.23.5.2847**.
+## ✨ 功能特性
 
-With **coremod and mixin support** that is easy to configure.
+- **多阶梯容量**：1K / 4K / 16K / 64K / 256K / 1024K / 4096K / 16384K / ∞ (无限)
+- **三种存储类型**：物品、流体、气体（需安装 [MekanismEnergistics](https://www.curseforge.com/minecraft/mc-mods/applied-mekanistics)）
+- **高性能后端**：采用 FastUtil `Object2LongMap` 实现 O(1) 存取，增量 NBT 序列化避免大规模重建
+- **UUID 分离存储**：每块磁盘拥有独立 UUID，数据持久化到主世界 `data/infinite/` 目录
+- **完整 AE2 集成**：驱动器 LED 状态指示、容量/类型 tooltip、IO Port 兼容
 
-### Instructions:
+## 🛠️ 开发环境
 
-1. Click `use this template` at the top.
-2. Clone the repository that you have created with this template to your local machine.
-3. Make sure IDEA is using Java 25 for Gradle before you sync the project. Verify this by going to IDEA's `Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JVM`.
-4. Open the project folder in IDEA. When prompted, click "Load Gradle Project" as it detects the `build.gradle`, if you weren't prompted, right-click the project's `build.gradle` in IDEA, select `Link Gradle Project`, after completion, hit `Refresh All` in the gradle tab on the right.
-5. Run gradle tasks such as `runClient` and `runServer` in the IDEA gradle tab, or use the auto-imported run configurations like `1. Run Client`.
+| 项目 | 版本 |
+|------|------|
+| Minecraft | 1.12.2 |
+| Forge | 14.23.5.2847 |
+| 构建工具 | Gradle 9.2.1 + [RetroFuturaGradle](https://github.com/GTNewHorizons/RetroFuturaGradle) 2.0.2 |
+| Java | 25 |
 
-### Notes:
-- Dependencies script in [gradle/scripts/dependencies.gradle](gradle/scripts/dependencies.gradle), explanations are commented in the file.
-- Publishing script in [gradle/scripts/publishing.gradle](gradle/scripts/publishing.gradle).
-- When writing Mixins on IntelliJ, it is advisable to use latest [MinecraftDev Fork for RetroFuturaGradle](https://github.com/eigenraven/MinecraftDev/releases).
+## 📦 快速开始
+
+1. 克隆本仓库
+2. 确保 IDEA 使用 Java 25 作为 Gradle JVM（`Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JVM`）
+3. 在 IDEA 中打开项目，加载 Gradle 工程
+4. 运行 `runClient` 或使用预配置的 `1. Run Client` 启动
+
+## 📄 项目结构
+
+```
+src/main/java/com/mcdyc/infinitycell/
+├── ExampleMod.java              # 模组主类，注册物品与 CellHandler
+├── item/
+│   └── AdvancedCellItem.java    # 磁盘物品定义，工厂方法 + Tooltip 渲染
+└── storage/
+    ├── AdvancedCellData.java     # 后端数据模型 (WorldSavedData + FastUtil)
+    ├── AdvancedCellHandler.java  # AE2 ICellHandler 适配器
+    └── AdvancedCellInventory.java # 存取代理，容量校验与字节计算
+```
+
+## 👤 作者
+
+**MCdyc**
+
+谢谢小老师给的材质
+
+## 🤖 代码声明
+
+本项目代码由 **Google Gemini** 与 **Anthropic Claude Code** 协助编写。
+
+## 📜 许可证
+
+MIT License
