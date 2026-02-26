@@ -68,7 +68,8 @@ public class AdvancedCellItem extends Item
      */
     @SideOnly(Side.CLIENT)
     @Override
-    public void addInformation(ItemStack stack, @Nullable World worldIn, List<String> tooltip, ITooltipFlag flagIn) {
+    public void addInformation(ItemStack stack, @Nullable World worldIn, List<String> tooltip, ITooltipFlag flagIn)
+    {
         // 显示盘的 UUID 签名
         if (stack.hasTagCompound() && stack.getTagCompound().hasKey("disk_uuid")) {
             tooltip.add("§8UUID: " + stack.getTagCompound().getString("disk_uuid"));
@@ -83,7 +84,8 @@ public class AdvancedCellItem extends Item
         } else if (this.type == StorageType.GAS) {
             // 利用反射防御性调用，防止没装燃气类附属导致崩溃
             try {
-                channelClass = Class.forName("appeng.api.storage.channels.IGasStorageChannel");
+                // 注意：MekanismEnergistics 气体通道在这个包路径！
+                channelClass = Class.forName("com.mekeng.github.common.me.storage.IGasStorageChannel");
             } catch (ClassNotFoundException e) {
                 // Ignore
             }
@@ -98,11 +100,12 @@ public class AdvancedCellItem extends Item
             if (inv instanceof appeng.api.storage.ICellInventoryHandler) {
                 // 如果是气体通道，我们需要自己接管渲染，因为 AE2 原版不支持渲染未知气体通道名称
                 if (this.type == StorageType.GAS) {
+
                     appeng.api.storage.ICellInventoryHandler<?> cellInvHandler = (appeng.api.storage.ICellInventoryHandler<?>) inv;
                     appeng.api.storage.ICellInventory<?> cellInv = cellInvHandler.getCellInv();
                     if (cellInv != null) {
-                        tooltip.add(cellInv.getUsedBytes() + " of " + cellInv.getTotalBytes() + " Bytes Used");
-                        tooltip.add(cellInv.getStoredItemTypes() + " of " + cellInv.getTotalItemTypes() + " Types");
+                        tooltip.add(cellInv.getUsedBytes() + " " + appeng.core.localization.GuiText.Of.getLocal() + " " + cellInv.getTotalBytes() + " " + appeng.core.localization.GuiText.BytesUsed.getLocal());
+                        tooltip.add(cellInv.getStoredItemTypes() + " " + appeng.core.localization.GuiText.Of.getLocal() + " " + cellInv.getTotalItemTypes() + " " + appeng.core.localization.GuiText.Types.getLocal());
                     }
 
                     if (net.minecraft.client.Minecraft.getMinecraft().gameSettings.advancedItemTooltips || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT) || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT)) {
