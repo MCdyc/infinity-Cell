@@ -18,7 +18,7 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          java-version: '17' # 根据你的项目版本调整，1.12.2 建议用 8，1.18+ 用 17
+          java-version: '25' # 根据你的项目版本调整，1.12.2 建议用 8，1.18+ 用 17
           distribution: 'zulu'
           cache: gradle
 
