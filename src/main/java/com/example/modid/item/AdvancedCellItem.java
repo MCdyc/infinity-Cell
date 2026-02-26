@@ -84,10 +84,9 @@ public class AdvancedCellItem extends Item
         } else if (this.type == StorageType.GAS) {
             // 利用反射防御性调用，防止没装燃气类附属导致崩溃
             try {
-                // 注意：MekanismEnergistics 气体通道在这个包路径！
                 channelClass = Class.forName("com.mekeng.github.common.me.storage.IGasStorageChannel");
             } catch (ClassNotFoundException e) {
-                // Ignore
+                return; // MekanismEnergistics 未安装，放弃渲染气体 tooltip
             }
         }
 
@@ -97,48 +96,68 @@ public class AdvancedCellItem extends Item
         if (channel != null) {
             // 把我们自己的盘强行塞给 AE2 官方审查系统读取
             IMEInventoryHandler<?> inv = AEApi.instance().registries().cell().getCellInventory(stack, null, channel);
+
             if (inv instanceof appeng.api.storage.ICellInventoryHandler) {
                 appeng.api.storage.ICellInventoryHandler<?> cellInvHandler = (appeng.api.storage.ICellInventoryHandler<?>) inv;
 
-                // 统一调用 AE2 系统渲染器，它会自动帮你格式化输出总容量、占用字节、分区、粘性等所有的基础提示条！
-                // 即使是第三方气体通道，由于实现了 ICellInventoryHandler 接口，容量部分也能正常被 AE2 算出来并高亮。
+                // AE2 默认的元件基础信息 (已用字节/类型等)
                 AEApi.instance().client().addCellInformation(cellInvHandler, tooltip);
 
-                // 如果是气体通道，由于 AE2 系统的 addCellInformation 迭代列表时不认识气体栈而会跳过显示，因此我们专门补画
                 if (this.type == StorageType.GAS) {
-                    if (net.minecraft.client.Minecraft.getMinecraft().gameSettings.advancedItemTooltips || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT) || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT)) {
-                        appeng.api.storage.ICellInventory<?> cellInv = cellInvHandler.getCellInv();
-                        if (cellInv != null) {
-                            appeng.api.storage.data.IItemList<?> itemList = cellInvHandler.getChannel().createList();
-                            cellInv.getAvailableItems((appeng.api.storage.data.IItemList) itemList);
-                            for (appeng.api.storage.data.IAEStack<?> s : itemList) {
-                                long size = s.getStackSize();
-                                String unit = size >= 1000 ? "B" : "mB";
-                                int log = (int) Math.floor(Math.log10(size)) / 2;
-                                int index = Math.max(0, Math.min(3, log));
-                                java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols();
-                                symbols.setDecimalSeparator('.');
-                                java.text.DecimalFormat format = new java.text.DecimalFormat(new String[]{"#.000", "#.00", "#.0", "#"}[index]);
-                                format.setDecimalFormatSymbols(symbols);
-                                format.setRoundingMode(java.math.RoundingMode.DOWN);
-                                String formattedSize = format.format(size / 1000d).concat(unit);
-
-                                // 参考 AE2 提示的默认格式与颜色（\u00A77 为灰色，这是工具提示上物品名称的默认辅助信息颜色）
-                                try {
-                                    Object gasStackObj = s.getClass().getMethod("getGasStack").invoke(s);
-                                    if (gasStackObj != null) {
-                                        Object gasObj = gasStackObj.getClass().getMethod("getGas").invoke(gasStackObj);
-                                        if (gasObj != null) {
-                                            String gasName = (String) gasObj.getClass().getMethod("getLocalizedName").invoke(gasObj);
-                                            tooltip.add("\u00A77" + gasName + ": " + formattedSize);
-                                        }
-                                    }
-                                } catch (Exception e) {
-                                    tooltip.add("\u00A77" + "Gas" + ": " + formattedSize);
-                                }
-                            }
-                        }
+                    // === 气体 tooltip 渲染，全部通过反射防御调用 ===
+                    try {
+                        addGasTooltip(cellInvHandler, tooltip);
+                    } catch (NoClassDefFoundError ignored) {
+                        // MekanismEnergistics 未安装，跳过气体详情渲染
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * 气体 tooltip 详细渲染 (独立方法，隔离 MekanismEnergistics 类引用)
+     * 所有对 MekEng 类的引用必须集中在这里，由调用方用 try-catch NoClassDefFoundError 包裹。
+     */
+    @SideOnly(Side.CLIENT)
+    private void addGasTooltip(appeng.api.storage.ICellInventoryHandler<?> cellInvHandler, List<String> tooltip) {
+        appeng.api.storage.ICellInventory<?> cellInventory = cellInvHandler.getCellInv();
+
+        // 只有在按下 Shift 或开启高级提示框时才显示具体内容
+        if (cellInventory != null && (net.minecraft.client.Minecraft.getMinecraft().gameSettings.advancedItemTooltips ||
+                org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT) ||
+                org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT))) {
+
+            // 创建一个空列表用于接收元件内的数据
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            appeng.api.storage.data.IItemList itemList = cellInventory.getChannel().createList();
+            cellInventory.getAvailableItems(itemList);
+
+            // 遍历获取到的所有物品/气体栈
+            for (Object s : itemList) {
+                if (s instanceof com.mekeng.github.common.me.data.IAEGasStack) {
+                    com.mekeng.github.common.me.data.IAEGasStack gasStack = (com.mekeng.github.common.me.data.IAEGasStack) s;
+                    long size = gasStack.getStackSize();
+
+                    // 跳过数量为0或负数的无效数据，防止 Math.log10 异常
+                    if (size <= 0) continue;
+
+                    // --- 内部集成的 gasStackSize 容量格式化逻辑 ---
+                    String unit = size >= 1000 ? "B" : "mB";
+                    int log = (int) Math.floor(Math.log10(size)) / 2;
+                    int index = Math.max(0, Math.min(3, log));
+
+                    java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols();
+                    symbols.setDecimalSeparator('.');
+                    java.text.DecimalFormat format = new java.text.DecimalFormat(new String[]{"#.000", "#.00", "#.0", "#"}[index]);
+                    format.setDecimalFormatSymbols(symbols);
+                    format.setRoundingMode(java.math.RoundingMode.DOWN);
+
+                    String formattedSize = format.format(size / 1000d) + unit;
+                    // ------------------------------------------------
+
+                    // 将气体名称和格式化后的容量添加到 tooltip
+                    tooltip.add(gasStack.getGasStack().getGas().getLocalizedName() + ": " + formattedSize);
                 }
             }
         }

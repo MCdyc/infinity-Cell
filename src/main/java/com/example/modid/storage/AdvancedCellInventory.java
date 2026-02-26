@@ -103,7 +103,8 @@ public class AdvancedCellInventory<T extends IAEStack<T>> implements ICellInvent
 
         World overworld = DimensionManager.getWorld(0);
         if (overworld == null) {
-            throw new RuntimeException("AE2 驱动器加载时主世界尚未就绪，无法挂载外置强网盘数据服务器！");
+            // 客户端连接远程服务器时主世界可能不可用，返回空数据避免崩溃
+            return new AdvancedCellData("empty_fallback");
         }
 
         // 把文件重定向到 data/infinite/
@@ -457,12 +458,14 @@ public class AdvancedCellInventory<T extends IAEStack<T>> implements ICellInvent
     public int getStatusForCell()
     {
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
-        if (chanData.totalBytes == maxBytes) {
-            return 3; // Type Full - Red
+        if (chanData.totalBytes >= maxBytes) {
+            return 3; // 红色 - 已满
         } else if (chanData.totalBytes == 0) {
-            return 4;
+            return 4; // 蓝色 - 空盘
+        } else if (maxBytes > 0 && (double) chanData.totalBytes / maxBytes >= 0.75) {
+            return 2; // 橙色 - 临界告警 (>=75%)
         }
-        return 1; // Good - Green
+        return 1; // 绿色 - 正常
     }
 
     @Override
