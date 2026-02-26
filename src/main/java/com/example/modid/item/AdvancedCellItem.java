@@ -98,48 +98,47 @@ public class AdvancedCellItem extends Item
             // 把我们自己的盘强行塞给 AE2 官方审查系统读取
             IMEInventoryHandler<?> inv = AEApi.instance().registries().cell().getCellInventory(stack, null, channel);
             if (inv instanceof appeng.api.storage.ICellInventoryHandler) {
-                // 如果是气体通道，我们需要自己接管渲染，因为 AE2 原版不支持渲染未知气体通道名称
+                appeng.api.storage.ICellInventoryHandler<?> cellInvHandler = (appeng.api.storage.ICellInventoryHandler<?>) inv;
+
+                // 统一调用 AE2 系统渲染器，它会自动帮你格式化输出总容量、占用字节、分区、粘性等所有的基础提示条！
+                // 即使是第三方气体通道，由于实现了 ICellInventoryHandler 接口，容量部分也能正常被 AE2 算出来并高亮。
+                AEApi.instance().client().addCellInformation(cellInvHandler, tooltip);
+
+                // 如果是气体通道，由于 AE2 系统的 addCellInformation 迭代列表时不认识气体栈而会跳过显示，因此我们专门补画
                 if (this.type == StorageType.GAS) {
-
-                    appeng.api.storage.ICellInventoryHandler<?> cellInvHandler = (appeng.api.storage.ICellInventoryHandler<?>) inv;
-                    appeng.api.storage.ICellInventory<?> cellInv = cellInvHandler.getCellInv();
-                    if (cellInv != null) {
-                        tooltip.add(cellInv.getUsedBytes() + " " + appeng.core.localization.GuiText.Of.getLocal() + " " + cellInv.getTotalBytes() + " " + appeng.core.localization.GuiText.BytesUsed.getLocal());
-                        tooltip.add(cellInv.getStoredItemTypes() + " " + appeng.core.localization.GuiText.Of.getLocal() + " " + cellInv.getTotalItemTypes() + " " + appeng.core.localization.GuiText.Types.getLocal());
-                    }
-
                     if (net.minecraft.client.Minecraft.getMinecraft().gameSettings.advancedItemTooltips || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT) || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT)) {
-                        appeng.api.storage.data.IItemList<?> itemList = cellInvHandler.getChannel().createList();
-                        cellInvHandler.getAvailableItems((appeng.api.storage.data.IItemList) itemList);
-                        for (appeng.api.storage.data.IAEStack<?> s : itemList) {
-                            long size = s.getStackSize();
-                            String unit = size >= 1000 ? "B" : "mB";
-                            int log = (int) Math.floor(Math.log10(size)) / 2;
-                            int index = Math.max(0, Math.min(3, log));
-                            java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols();
-                            symbols.setDecimalSeparator('.');
-                            java.text.DecimalFormat format = new java.text.DecimalFormat(new String[]{"#.000", "#.00", "#.0", "#"}[index]);
-                            format.setDecimalFormatSymbols(symbols);
-                            format.setRoundingMode(java.math.RoundingMode.DOWN);
-                            String formattedSize = format.format(size / 1000d).concat(unit);
+                        appeng.api.storage.ICellInventory<?> cellInv = cellInvHandler.getCellInv();
+                        if (cellInv != null) {
+                            appeng.api.storage.data.IItemList<?> itemList = cellInvHandler.getChannel().createList();
+                            cellInv.getAvailableItems((appeng.api.storage.data.IItemList) itemList);
+                            for (appeng.api.storage.data.IAEStack<?> s : itemList) {
+                                long size = s.getStackSize();
+                                String unit = size >= 1000 ? "B" : "mB";
+                                int log = (int) Math.floor(Math.log10(size)) / 2;
+                                int index = Math.max(0, Math.min(3, log));
+                                java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols();
+                                symbols.setDecimalSeparator('.');
+                                java.text.DecimalFormat format = new java.text.DecimalFormat(new String[]{"#.000", "#.00", "#.0", "#"}[index]);
+                                format.setDecimalFormatSymbols(symbols);
+                                format.setRoundingMode(java.math.RoundingMode.DOWN);
+                                String formattedSize = format.format(size / 1000d).concat(unit);
 
-                            try {
-                                Object gasStackObj = s.getClass().getMethod("getGasStack").invoke(s);
-                                if (gasStackObj != null) {
-                                    Object gasObj = gasStackObj.getClass().getMethod("getGas").invoke(gasStackObj);
-                                    if (gasObj != null) {
-                                        String gasName = (String) gasObj.getClass().getMethod("getLocalizedName").invoke(gasObj);
-                                        tooltip.add(gasName + ": " + formattedSize);
+                                // 参考 AE2 提示的默认格式与颜色（\u00A77 为灰色，这是工具提示上物品名称的默认辅助信息颜色）
+                                try {
+                                    Object gasStackObj = s.getClass().getMethod("getGasStack").invoke(s);
+                                    if (gasStackObj != null) {
+                                        Object gasObj = gasStackObj.getClass().getMethod("getGas").invoke(gasStackObj);
+                                        if (gasObj != null) {
+                                            String gasName = (String) gasObj.getClass().getMethod("getLocalizedName").invoke(gasObj);
+                                            tooltip.add("\u00A77" + gasName + ": " + formattedSize);
+                                        }
                                     }
+                                } catch (Exception e) {
+                                    tooltip.add("\u00A77" + "Gas" + ": " + formattedSize);
                                 }
-                            } catch (Exception e) {
-                                tooltip.add("Gas" + ": " + formattedSize);
                             }
                         }
                     }
-                } else {
-                    // 默认调用系统渲染器
-                    AEApi.instance().client().addCellInformation((appeng.api.storage.ICellInventoryHandler) inv, tooltip);
                 }
             }
         }
