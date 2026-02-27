@@ -20,7 +20,6 @@ import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.items.IItemHandler;
 
 import java.io.File;
-import java.util.UUID;
 
 /**
  * 带有阶梯上限校验和高性能读写的通用盘代理器
@@ -46,7 +45,7 @@ public class AdvancedCellInventory<T extends IAEStack<T>> implements ICellInvent
     // 当前磁盘根据阶层的配置，被划定的最大总存储字节数
     private final long maxBytes;
     // 当前磁盘根据类型配置，被划定的最大允许存储的不同物品种类数
-    private final int maxTypes;
+    private final long maxTypes;
 
     /**
      * 构建一个盘的数据存取代理实例
@@ -62,7 +61,7 @@ public class AdvancedCellInventory<T extends IAEStack<T>> implements ICellInvent
             this.parentItem = (AdvancedCellItem) cellItem.getItem();
 
             // 所有阶层都不再限制物品种类（统一为无限种）
-            this.maxTypes = Integer.MAX_VALUE;
+            this.maxTypes = Long.MAX_VALUE / 2;
 
             // 如果是无限盘 (INF)，给予极限容量
             if (this.parentItem.tier == AdvancedCellItem.StorageTier.INF) {
@@ -75,7 +74,7 @@ public class AdvancedCellInventory<T extends IAEStack<T>> implements ICellInvent
             // 安全回退预设 (如果被非常规手段唤醒)
             this.parentItem = null;
             this.maxBytes = Long.MAX_VALUE / 2;
-            this.maxTypes = Integer.MAX_VALUE;
+            this.maxTypes = Long.MAX_VALUE / 2;
         }
 
         // 加载或创建后端 O(1) 数据源
@@ -239,20 +238,21 @@ public class AdvancedCellInventory<T extends IAEStack<T>> implements ICellInvent
     }
 
     /**
-     * 容量与物品单位计算器：
-     * 原版的 AE2 流体其实是以 1000mB 等效等于 1 个物品进行换算的，
-     * 但是原本直接走底层 List 很容易导致换算税金磨损（碎片化 Bug）。
-     * 我们这里返回一个固定严格的除法系数。
+     * 容量与物品单位计算器。
+     * - 无限盘 (INF)：所有通道统一 1:1，彻底规避 long 溢出风险。
+     *   流体/气体每 1 mB 占 1 Byte，物品每 1 个占 1 Byte。
+     * - 普通盘：还原 AE2 原版换算密度。
+     *   流体/气体每 1000 mB 占 1 Byte，物品每 8 个占 1 Byte。
      */
     private long getUnPerByte()
     {
-        long base = channel.getUnitsPerByte();
-        if (base <= 8) {
-            return 1; // 传统物品栈，1 数量等于 1 耗去字节
-        } else if (base > 1000) {
-            return 1000; // 流体/气体，每 1000mB = 1 耗去字节
+        boolean isInf = parentItem != null && parentItem.tier == AdvancedCellItem.StorageTier.INF;
+        if (isInf) {
+            return 1; // 无限盘：1:1，规避溢出
         }
-        return base;
+        // 普通盘：按通道类型区分
+
+        return channel.getUnitsPerByte()/8;
     }
 
     /**
