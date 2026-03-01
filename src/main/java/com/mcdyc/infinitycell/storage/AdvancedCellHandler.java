@@ -10,9 +10,8 @@ import appeng.api.storage.data.IAEStack;
 import com.mcdyc.infinitycell.item.AdvancedCellItem;
 import net.minecraft.item.ItemStack;
 
-public class AdvancedCellHandler implements ICellHandler
+public class AdvancedCellHandler extends appeng.core.features.registries.cell.BasicCellHandler
 {
-
     @Override
     public boolean isCell(ItemStack is)
     {

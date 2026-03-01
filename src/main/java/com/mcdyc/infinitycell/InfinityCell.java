@@ -50,8 +50,27 @@ public class InfinityCell
     public void init(FMLInitializationEvent event)
     {
         // 注册高级别泛用容量和气体拦截安检门
-        AEApi.instance().registries().cell().addCellHandler(new AdvancedCellHandler());
-        LOGGER.info("成功挂载了 Advanced 多阶梯硬盘存取拦截安检门！");
+        appeng.api.storage.ICellRegistry cellRegistry = AEApi.instance().registries().cell();
+        try {
+            boolean injected = false;
+            for (java.lang.reflect.Field field : cellRegistry.getClass().getDeclaredFields()) {
+                if (java.util.List.class.isAssignableFrom(field.getType())) {
+                    field.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    java.util.List<appeng.api.storage.ICellHandler> handlers = (java.util.List<appeng.api.storage.ICellHandler>) field.get(cellRegistry);
+                    handlers.add(0, new AdvancedCellHandler());
+                    injected = true;
+                    break;
+                }
+            }
+            if (!injected) {
+                cellRegistry.addCellHandler(new AdvancedCellHandler());
+            }
+            LOGGER.info("成功挂载了 Advanced 多阶梯硬盘存取拦截安检门 (Injected)！");
+        } catch (Exception e) {
+            cellRegistry.addCellHandler(new AdvancedCellHandler());
+            LOGGER.error("挂载 Advanced 多阶梯硬盘存取拦截安检门 (Injected) 失败，后备方案注册！", e);
+        }
     }
 
     /**
@@ -64,6 +83,7 @@ public class InfinityCell
         for (AdvancedCellItem cell : ADVANCED_CELLS) {
             event.getRegistry().register(cell);
         }
+        event.getRegistry().register(new com.mcdyc.infinitycell.item.DebugInjectorItem());
     }
 
     /**
@@ -77,6 +97,13 @@ public class InfinityCell
             net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
                     cell, 0,
                     new net.minecraft.client.renderer.block.model.ModelResourceLocation(cell.getRegistryName(), "inventory")
+            );
+        }
+        Item debugItem = net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.getValue(new net.minecraft.util.ResourceLocation("infinitycell", "debug_injector"));
+        if(debugItem != null) {
+            net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
+                debugItem, 0,
+                new net.minecraft.client.renderer.block.model.ModelResourceLocation("minecraft:stick", "inventory")
             );
         }
     }

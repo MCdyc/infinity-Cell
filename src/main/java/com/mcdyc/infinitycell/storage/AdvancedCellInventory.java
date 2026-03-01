@@ -116,7 +116,9 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public long getTotalItemTypes()
     {
-        return maxTypes;
+        // 返回一个合理的显示数值而不是 Long.MAX_VALUE / 2，
+        // 避免 NAE2 等模组强转为 int 时溢出（-1）或尝试渲染数十亿个格子导致崩溃。
+        return Math.min(126L, getStoredItemTypes());
     }
 
     @Override

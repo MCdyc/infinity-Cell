@@ -85,7 +85,9 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public long getTotalItemTypes()
     {
-        return DISPLAY_BYTES;
+        // 返回一个合理的显示数值而不是 Long.MAX_VALUE / 2，
+        // 避免 NAE2 等模组强转为 int 时溢出（-1）或尝试渲染数十亿个格子导致崩溃。
+        return Math.min(126L, getStoredItemTypes());
     }
 
     @Override
@@ -97,7 +99,11 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public long getRemainingItemCount()
     {
-        return DISPLAY_BYTES; // 直接返回定值，避免 getFreeBytes() × unPerByte 溢出
+        // 返回定值作为“剩余空间”，而不是根据当前已存数量扣减。
+        // 如果这里返回 `DISPLAY_BYTES - stored`，那么一旦存满 DISPLAY_BYTES 个物品，
+        // remaining 会变成 0，AE2 网络将拒绝再存入任何物品，这就成有限盘了。
+        // 保持返回定值，真正的无底洞！
+        return DISPLAY_BYTES;
     }
 
     @Override

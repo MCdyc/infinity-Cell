@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class AdvancedCellItem extends Item
+public class AdvancedCellItem extends Item implements appeng.api.implementations.items.IStorageCell
 {
     /**
      * 自定义创造模式物品栏标签，图标使用 64k 物品盘
@@ -176,5 +176,80 @@ public class AdvancedCellItem extends Item
             }
         }
         return disks;
+    }
+
+    @Override
+    public appeng.api.storage.IStorageChannel getChannel() {
+        if (this.type == StorageType.FLUID) {
+            return appeng.api.AEApi.instance().storage().getStorageChannel(appeng.api.storage.channels.IFluidStorageChannel.class);
+        } else if (this.type == StorageType.GAS) {
+            try {
+                return appeng.api.AEApi.instance().storage().getStorageChannel((Class) Class.forName("com.mekeng.github.common.me.storage.IGasStorageChannel"));
+            } catch (ClassNotFoundException e) {
+                return null;
+            }
+        }
+        return appeng.api.AEApi.instance().storage().getStorageChannel(appeng.api.storage.channels.IItemStorageChannel.class);
+    }
+
+    // --- IStorageCell methods ---
+    @Override
+    public int getBytes(ItemStack cellItem) {
+        return this.tier == StorageTier.INF ? Integer.MAX_VALUE : this.tier.kb * 1024;
+    }
+
+    @Override
+    public int getBytesPerType(ItemStack cellItem) {
+        return 8;
+    }
+
+    @Override
+    public int getTotalTypes(ItemStack cellItem) {
+        return 63;
+    }
+
+    @Override
+    public boolean isBlackListed(ItemStack cellItem, appeng.api.storage.data.IAEStack requestedAddition) {
+        return false;
+    }
+
+    @Override
+    public boolean storableInStorageCell() {
+        return false;
+    }
+
+    @Override
+    public boolean isStorageCell(ItemStack cellItem) {
+        return true;
+    }
+
+    @Override
+    public double getIdleDrain() {
+        return 0.0;
+    }
+
+    // --- ICellWorkbenchItem methods ---
+    @Override
+    public boolean isEditable(ItemStack is) {
+        return true;
+    }
+
+    @Override
+    public net.minecraftforge.items.IItemHandler getUpgradesInventory(ItemStack is) {
+        return null;
+    }
+
+    @Override
+    public net.minecraftforge.items.IItemHandler getConfigInventory(ItemStack is) {
+        return null;
+    }
+
+    @Override
+    public appeng.api.config.FuzzyMode getFuzzyMode(ItemStack is) {
+        return appeng.api.config.FuzzyMode.IGNORE_ALL;
+    }
+
+    @Override
+    public void setFuzzyMode(ItemStack is, appeng.api.config.FuzzyMode fzMode) {
     }
 }

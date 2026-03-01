@@ -91,7 +91,7 @@ dependencies {
     implementation(rfg.deobf("maven.modrinth:ae2uel-extra:v1.0.5"))
     implementation(rfg.deobf("curse.maven:fluidcraftforae2-623955:5751930"))
     implementation rfg.deobf("curse.maven:mekanism-energistics-1027681:5408319")
-//    implementation(rfg.deobf(files("libs/nae2-1.6.4-dev.jar")))
+   implementation(rfg.deobf(files("libs/nae2-1.6.4-dev.jar")))
     implementation(rfg.deobf("curse.maven:codechickenlib-242818:2779848"))
     implementation(rfg.deobf(files("libs/Mekanism-CE-Unofficial-All-9.9.1.221-dev.jar")))
 //    implementation(rfg.deobf(files("libs/geckolib-forge-1.12.2-3.0.31.jar")))
