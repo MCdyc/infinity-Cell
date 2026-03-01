@@ -34,4 +34,4 @@ infinitycell.tooltip.uuid=§8UUID: %s
 infinitycell.tooltip.uuid_unassigned=§8UUID: §7[Unassigned]
 infinitycell.tooltip.used_total_bytes=§bUsed: §f%s §8/ §f%s §8Bytes
 # Gradient INFINITE label: #7594F0(§9 blue)→#8C35E3(§5 dark purple)→#4C4C4D(§8 dark gray)
-infinitycell.tooltip.capacity_infinite=#7594F0-8C35E3-4C4C4DCapacity: Infinite
+infinitycell.tooltip.capacity_infinite=#7594F0-8C35E3-4C4C4DCapacity: %s/Infinite

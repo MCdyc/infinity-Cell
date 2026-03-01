@@ -32,4 +32,4 @@ item.gas_cell_inf.name=#7594F0-8C35E3-4C4C4DINFINITE§f-ME气体存储元件
 infinitycell.tooltip.uuid=§8UUID: %s
 infinitycell.tooltip.uuid_unassigned=§8UUID: §7[未分配]
 infinitycell.tooltip.used_total_bytes=§b已用: §f%s §8/ §f%s §8Bytes
-infinitycell.tooltip.capacity_infinite=#7594F0-8C35E3-4C4C4D容量: INFINITE
+infinitycell.tooltip.capacity_infinite=#7594F0-8C35E3-4C4C4D容量: %s/INFINITE

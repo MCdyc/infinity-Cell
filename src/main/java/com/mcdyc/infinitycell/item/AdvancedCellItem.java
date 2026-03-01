@@ -145,8 +145,8 @@ public class AdvancedCellItem extends Item
         long usedBytes = cellInv.getUsedBytes();
 
         if (this.tier == StorageTier.INF) {
-            // 无限盘：已用字节行 + 容量标签行，格式/颜色全在 lang
-            tooltip.add(I18n.format("infinitycell.tooltip.capacity_infinite"));
+            // 无限盘：种类数 + 容量标签行，格式/颜色全在 lang
+            tooltip.add(I18n.format("infinitycell.tooltip.capacity_infinite", cellInv.getStoredItemTypes()));
         } else {
             // 有限盘：已用/总容量行，格式/颜色全在 lang
             tooltip.add(I18n.format("infinitycell.tooltip.used_total_bytes", usedBytes, cellInv.getTotalBytes()));
