@@ -39,6 +39,10 @@ public class AdvancedCellHandler implements ICellHandler
         if (cell.type == AdvancedCellItem.StorageType.FLUID && !isFluidChan) return null;
         if (cell.type == AdvancedCellItem.StorageType.GAS && !isGasChan) return null;
 
+        // INF 阶层使用独立的无限盘实现（无容量算术，零溢出风险）
+        if (cell.tier == AdvancedCellItem.StorageTier.INF) {
+            return new InfiniteCellInventory<>(is, host, channel);
+        }
         return new AdvancedCellInventory<>(is, host, channel);
     }
 
@@ -51,8 +55,9 @@ public class AdvancedCellHandler implements ICellHandler
     @Override
     public int getStatusForCell(ItemStack is, ICellInventoryHandler handler)
     {
-        if (handler instanceof AdvancedCellInventory) {
-            return ((AdvancedCellInventory<?>) handler).getStatusForCell();
+        // 两个子类均继承 AbstractAdvancedCellInventory，统一由基类引用调用
+        if (handler instanceof AbstractAdvancedCellInventory) {
+            return ((AbstractAdvancedCellInventory<?>) handler).getStatusForCell();
         }
         return 1;
     }

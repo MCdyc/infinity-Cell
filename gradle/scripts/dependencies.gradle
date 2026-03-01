@@ -78,7 +78,7 @@ dependencies {
     // implementation ('com.google.code.gson:gson:2.8.6') {
     //     transitive = false
     // }
-    implementation("CraftTweaker2:CraftTweaker2-MC1120-Main:1.12-4.+")
+//    implementation("CraftTweaker2:CraftTweaker2-MC1120-Main:1.12-4.+") // maven.blamejared.com 无法解析，暂时注释
 //    implementation(rfg.deobf(files("libs/modularmachinery-2.1.0-main.jar")))
 //    implementation(rfg.deobf(files("libs/MMCE-ComponentModelHider-1.1-dev.jar")))
 //    implementation(rfg.deobf(files("libs/resourceloader-1.5.3-main.jar")))
