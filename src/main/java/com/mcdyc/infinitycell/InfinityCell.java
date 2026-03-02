@@ -1,6 +1,5 @@
 package com.mcdyc.infinitycell;
 
-// 这里能引用的这个 Tags 是由于你整个项目跑在 RetroFuturaGradle 上，通过模板打包时自动生成的宏定义类
 
 // FML 核心注册标头，用来宣誓这是一个 Forge 模组
 
@@ -21,7 +20,7 @@ import java.util.List;
 /**
  * 模组的唯一主类 —— 在服务器/客户端启动时 FML 首先会抓取和通电激活这里
  */
-@Mod(modid = Tags.MOD_ID, name = Tags.MOD_NAME, version = Tags.VERSION, dependencies = "required-after:appliedenergistics2")
+@Mod(modid = Tags.MOD_ID, name = Tags.MOD_NAME, version = Tags.VERSION, dependencies = "required-after:appliedenergistics2;after:mixinbooter")
 // 告诉 Forge：这个主类里含有需要被事件总线 (EventBus) 自动监听的方法
 @Mod.EventBusSubscriber(modid = Tags.MOD_ID)
 public class InfinityCell

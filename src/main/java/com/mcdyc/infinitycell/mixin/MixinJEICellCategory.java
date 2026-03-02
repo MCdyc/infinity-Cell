@@ -22,8 +22,6 @@ public class MixinJEICellCategory {
             at = @At(value = "INVOKE", target = "Ljava/util/ArrayList;sort(Ljava/util/Comparator;)V")
     )
     private void fixIntegerOverflowSort(ArrayList<IAEStack<?>> instance, Comparator<? super IAEStack<?>> originalComparator) {
-        // 使用 Long.compare 安全地比较由于我们无限盘带来的可能会有 Long.MAX_VALUE 级别差异的物品尺寸，
-        // 而不是使用减法然后向下强转 int。
         instance.sort((a, b) -> Long.compare(b.getStackSize(), a.getStackSize()));
     }
 }
