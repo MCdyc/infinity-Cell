@@ -21,7 +21,7 @@ public class DebugInjectorItem extends Item {
     public DebugInjectorItem() {
         this.setRegistryName("debug_injector");
         this.setTranslationKey("debug_injector");
-        this.setCreativeTab(CreativeTabs.AdvancedCellItem);
+        this.setCreativeTab(AdvancedCellItem.CREATIVE_TAB);
         this.setMaxStackSize(1);
     }
 
