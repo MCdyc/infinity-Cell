@@ -1,7 +1,7 @@
 package com.mcdyc.infinitycell.mixin;
 
 import appeng.api.storage.ICellInventory;
-import com.llamalad7.mixinextras.injector.ModifyVariable;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import co.neeve.nae2.common.integration.jei.JEICellCategory;
@@ -51,33 +51,36 @@ public class MixinJEICellCategoryDisplay {
      * 问题：NAE2 容量计算: capacity = (getRemainingItemCount() + storedItemCount) / transferFactor
      * 如果 getRemainingItemCount() 返回固定值，则容量会随着 storedItemCount 增加而增加
      *
-     * 解决方案：直接修改 capacity 变量，使其始终返回固定无限值
+     * 解决方案：修改 getRemainingItemCount() 返回值，使其减去存储的数量
+     * 这样 (getRemainingItemCount() + storedItemCount) 保持恒定
      */
-    @ModifyVariable(
+    @WrapOperation(
             method = "drawExtras",
-            at = @At(value = "STORE", ordinal = 0)
+            at = @At(value = "INVOKE", target = "Lappeng/api/storage/ICellInventory;getRemainingItemCount()J")
     )
-    private long modifyCapacity(long capacity) {
-        // 通过反射检查 cellInfo 是否为无限磁盘
-        // 注意：这里需要访问 JEICellCategory 的私有字段 cellInfo
-        if (this instanceof JEICellCategory) {
-            try {
-                java.lang.reflect.Field cellInfoField = JEICellCategory.class.getDeclaredField("cellInfo");
-                cellInfoField.setAccessible(true);
-                Object cellInfo = cellInfoField.get(this);
-                if (cellInfo != null) {
-                    java.lang.reflect.Field cellInvField = cellInfo.getClass().getDeclaredField("cellInv");
-                    cellInvField.setAccessible(true);
-                    ICellInventory<?> cellInv = (ICellInventory<?>) cellInvField.get(cellInfo);
-                    if (cellInv instanceof InfiniteCellInventory<?>) {
-                        // 返回固定无限容量，不随存储物品增加而变化
-                        return Long.MAX_VALUE / 2;
-                    }
-                }
-            } catch (Exception e) {
-                // 忽略异常，返回原始值
-            }
+    private long wrapGetRemainingItemCount(ICellInventory<?> instance, Operation<Long> original) {
+        if (instance instanceof InfiniteCellInventory<?>) {
+            // 返回超大值减去已存储的数量，使得总和保持恒定
+            // capacity = ((Long.MAX_VALUE / 2 - stored) + stored) / transferFactor = Long.MAX_VALUE / 2 / transferFactor
+            long stored = instance.getStoredItemCount();
+            // 防止溢出
+            long remaining = (Long.MAX_VALUE / 2) - stored;
+            return remaining > 0 ? remaining : 0;
         }
-        return capacity;
+        return original.call(instance);
+    }
+
+    /**
+     * 额外修复: 确保无限磁盘的总字节容量显示为无限
+     */
+    @ModifyExpressionValue(
+            method = "drawExtras",
+            at = @At(value = "INVOKE", target = "Lappeng/api/storage/ICellInventory;getTotalBytes()J")
+    )
+    private long modifyGetTotalBytes(long original, ICellInventory<?> cellInv) {
+        if (cellInv instanceof InfiniteCellInventory<?>) {
+            return Long.MAX_VALUE / 2;
+        }
+        return original;
     }
 }
