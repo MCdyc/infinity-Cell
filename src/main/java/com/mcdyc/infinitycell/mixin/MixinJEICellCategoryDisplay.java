@@ -1,11 +1,10 @@
 package com.mcdyc.infinitycell.mixin;
 
 import appeng.api.storage.ICellInventory;
-import appeng.api.storage.IStorageChannel;
+import com.llamalad7.mixinextras.injector.ModifyVariable;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import co.neeve.nae2.common.integration.jei.JEICellCategory;
-import com.mcdyc.infinitycell.storage.AdvancedCellInventory;
 import com.mcdyc.infinitycell.storage.InfiniteCellInventory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,7 +14,6 @@ import org.spongepowered.asm.mixin.injection.At;
  *
  * 存储策略说明：
  * - InfiniteCell: 1 物品 = 1 byte, 1 mB = 1 byte (容量无限)
- * - AdvancedCell: 1 物品 = 1 byte, 1000 mB (1桶) = 1 byte (有限容量)
  *
  * AE2 unitsPerByte:
  * - 物品通道: 8
@@ -26,22 +24,13 @@ public class MixinJEICellCategoryDisplay {
 
     /**
      * Bug #2 修复: getBytesPerType() 返回 0 导致计算错误
-     *
-     * NAE2 计算公式: getBytesPerType() + Math.ceil(stackSize / unitsPerByte)
-     * - 物品: unitsPerByte = 8
-     * - 流体: unitsPerByte = 8000 mB
-     *
-     * InfiniteCell 存储策略: 1 item = 1 byte
-     * 返回 0，让 Math.ceil(stackSize / unitsPerByte) 自动计算正确值
-     * (对于显示来说，这个值仅作参考，不影响实际存储)
+     * 保持原样，让 NAE2 根据通道类型自动计算
      */
     @WrapOperation(
             method = "getCallBack",
             at = @At(value = "INVOKE", target = "Lappeng/api/storage/ICellInventory;getBytesPerType()I")
     )
     private int wrapGetBytesPerTypeForTooltip(ICellInventory<?> instance, Operation<Integer> original) {
-        // InfiniteCell 和 AdvancedCell 都返回 0，保持原样
-        // NAE2 的计算公式会根据 unitsPerByte 自动计算
         return original.call(instance);
     }
 
@@ -57,38 +46,38 @@ public class MixinJEICellCategoryDisplay {
     }
 
     /**
-     * Bug #3 修复: InfiniteCell 容量显示为无限
+     * Bug #3 修复: InfiniteCell 容量显示为无限且固定
      *
-     * NAE2 容量计算公式: (getRemainingItemCount() + storedItemCount) / transferFactor
+     * 问题：NAE2 容量计算: capacity = (getRemainingItemCount() + storedItemCount) / transferFactor
+     * 如果 getRemainingItemCount() 返回固定值，则容量会随着 storedItemCount 增加而增加
      *
-     * 返回超大值，使容量 ≈ 无限
-     * 显示为 "Stored: X / ∞"
+     * 解决方案：直接修改 capacity 变量，使其始终返回固定无限值
      */
-    @WrapOperation(
+    @ModifyVariable(
             method = "drawExtras",
-            at = @At(value = "INVOKE", target = "Lappeng/api/storage/ICellInventory;getRemainingItemCount()J")
+            at = @At(value = "STORE", ordinal = 0)
     )
-    private long wrapGetRemainingItemCount(ICellInventory<?> instance, Operation<Long> original) {
-        if (instance instanceof InfiniteCellInventory<?>) {
-            // 返回超大值，使容量显示接近无限
-            return Long.MAX_VALUE / 4;
+    private long modifyCapacity(long capacity) {
+        // 通过反射检查 cellInfo 是否为无限磁盘
+        // 注意：这里需要访问 JEICellCategory 的私有字段 cellInfo
+        if (this instanceof JEICellCategory) {
+            try {
+                java.lang.reflect.Field cellInfoField = JEICellCategory.class.getDeclaredField("cellInfo");
+                cellInfoField.setAccessible(true);
+                Object cellInfo = cellInfoField.get(this);
+                if (cellInfo != null) {
+                    java.lang.reflect.Field cellInvField = cellInfo.getClass().getDeclaredField("cellInv");
+                    cellInvField.setAccessible(true);
+                    ICellInventory<?> cellInv = (ICellInventory<?>) cellInvField.get(cellInfo);
+                    if (cellInv instanceof InfiniteCellInventory<?>) {
+                        // 返回固定无限容量，不随存储物品增加而变化
+                        return Long.MAX_VALUE / 2;
+                    }
+                }
+            } catch (Exception e) {
+                // 忽略异常，返回原始值
+            }
         }
-        return original.call(instance);
-    }
-
-    /**
-     * 额外修复: InfiniteCell 的总字节容量显示
-     * 返回超大值，使总容量显示为接近无限
-     */
-    @WrapOperation(
-            method = "drawExtras",
-            at = @At(value = "INVOKE", target = "Lappeng/api/storage/ICellInventory;getTotalBytes()J")
-    )
-    private long wrapGetTotalBytes(ICellInventory<?> instance, Operation<Long> original) {
-        if (instance instanceof InfiniteCellInventory<?>) {
-            // InfiniteCell 显示为无限
-            return Long.MAX_VALUE / 4;
-        }
-        return original.call(instance);
+        return capacity;
     }
 }
