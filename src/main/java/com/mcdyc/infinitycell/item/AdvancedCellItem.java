@@ -105,6 +105,88 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         }
     }
 
+    @Override
+    public net.minecraft.util.ActionResult<ItemStack> onItemRightClick(World worldIn, net.minecraft.entity.player.EntityPlayer playerIn, net.minecraft.util.EnumHand handIn)
+    {
+        ItemStack stack = playerIn.getHeldItem(handIn);
+
+        // 如果在潜行并且是在空气中右键，执行分离逻辑
+        if (playerIn.isSneaking() && !worldIn.isRemote) {
+
+            // 检查硬盘是否为空
+            Class<?> channelClass = IItemStorageChannel.class;
+            if (this.type == StorageType.FLUID) {
+                channelClass = IFluidStorageChannel.class;
+            } else if (this.type == StorageType.GAS) {
+                try {
+                    channelClass = Class.forName("com.mekeng.github.common.me.storage.IGasStorageChannel");
+                } catch (ClassNotFoundException e) {
+                    return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.PASS, stack);
+                }
+            }
+
+            @SuppressWarnings({"rawtypes", "unchecked"})
+            appeng.api.storage.IStorageChannel<?> channel = AEApi.instance().storage().getStorageChannel((Class) channelClass);
+            if (channel != null) {
+                IMEInventoryHandler<?> inv = AEApi.instance().registries().cell().getCellInventory(stack, null, channel);
+                if (inv instanceof appeng.api.storage.ICellInventoryHandler) {
+                    appeng.api.storage.ICellInventory<?> cellInv = ((appeng.api.storage.ICellInventoryHandler<?>) inv).getCellInv();
+                    if (cellInv != null) {
+                        if (cellInv.getUsedBytes() == 0 && cellInv.getStoredItemTypes() == 0) {
+                            // 硬盘为空，执行分离
+
+                            // 1. 获取要给予的组件
+                            ItemStack targetComponent = getOriginalComponent();
+
+                            if (!CELL_HOUSINGS.isEmpty()) {
+                                // 2. 从玩家手上完全移除当前硬盘（兼容创造模式的拆分逻辑）
+                                playerIn.setHeldItem(handIn, ItemStack.EMPTY);
+
+                                // 3. 给予外壳和组件
+                                appeng.util.InventoryAdaptor ia = appeng.util.InventoryAdaptor.getAdaptor(playerIn);
+                                if (ia != null) {
+                                    ItemStack housingLeft = ia.addItems(new ItemStack(CELL_HOUSINGS.get(0)));
+                                    if (!housingLeft.isEmpty()) {
+                                        playerIn.dropItem(housingLeft, false);
+                                    }
+
+                                    if (!targetComponent.isEmpty()) {
+                                        ItemStack componentLeft = ia.addItems(targetComponent);
+                                        if (!componentLeft.isEmpty()) {
+                                            playerIn.dropItem(componentLeft, false);
+                                        }
+                                    }
+                                }
+
+                                // 4. 删除对应的 UUID 数据文件
+                                if (stack.hasTagCompound() && stack.getTagCompound().hasKey("disk_uuid")) {
+                                    String uuid = stack.getTagCompound().getString("disk_uuid");
+                                    java.io.File infiniteDir = new java.io.File(worldIn.getSaveHandler().getWorldDirectory(), "data/infinite");
+                                    java.io.File dataFile = new java.io.File(infiniteDir, uuid + ".dat");
+                                    if (dataFile.exists()) {
+                                        boolean deleted = dataFile.delete();
+                                        if (deleted) {
+                                            com.mcdyc.infinitycell.InfinityCell.LOGGER.info("Deleted UUID data file for separated cell: {}", uuid);
+                                        }
+                                    }
+                                }
+
+                                // 发送背包更新
+                                if (playerIn.inventoryContainer != null) {
+                                    playerIn.inventoryContainer.detectAndSendChanges();
+                                }
+
+                                return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.SUCCESS, stack);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.PASS, stack);
+    }
+
     /**
      * Tooltip：只显示 UUID 与字节占用，所有颜色与文本均由 lang 文件控制。
      */
@@ -153,29 +235,91 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         }
     }
 
+    public static final List<AdvancedCellHousingItem> CELL_HOUSINGS = new ArrayList<>();
+
     /**
      * 工厂方法：动态生成所有支持的磁盘物品列表
      */
     public static List<AdvancedCellItem> createAllDisks()
     {
         List<AdvancedCellItem> disks = new ArrayList<>();
+        
+        // 我们只生成一个通用的外壳
+        CELL_HOUSINGS.add(new AdvancedCellHousingItem());
 
-        boolean hasGas = false;
-        // 通过尝试加载某些可能引入气体的 AE2 附属类来判断是否存在气体存储 (如 MekanismEnergistics/ExtraCells 等)
-        // 这里用模糊探索机制：如果 appeng.api.storage.channels.IGasStorageChannel 存在则开启气体盘注册
-        if (Platform.isModLoaded("mekeng")) {
-            hasGas = true;
-        }
-
+        boolean hasGas = Platform.isModLoaded("mekeng");
+        boolean hasNAE2 = Platform.isModLoaded("nae2");
 
         for (StorageTier tier : StorageTier.values()) {
-            disks.add(new AdvancedCellItem(tier, StorageType.ITEM));
-            disks.add(new AdvancedCellItem(tier, StorageType.FLUID));
-            if (hasGas) {
-                disks.add(new AdvancedCellItem(tier, StorageType.GAS));
+            boolean shouldRegister = true;
+            if (tier.kb > 64 && tier != StorageTier.INF) {
+                // 256k, 1024k, 4096k, 16384k
+                shouldRegister = hasNAE2;
+            }
+
+            if (shouldRegister) {
+                disks.add(new AdvancedCellItem(tier, StorageType.ITEM));
+                disks.add(new AdvancedCellItem(tier, StorageType.FLUID));
+                if (hasGas) {
+                    disks.add(new AdvancedCellItem(tier, StorageType.GAS));
+                }
             }
         }
         return disks;
+    }
+
+    public ItemStack getOriginalComponent() {
+        if (this.tier == StorageTier.INF) return ItemStack.EMPTY;
+
+        String modid = "";
+        String itemName = "material";
+        int meta = 0;
+
+        if (this.tier.kb <= 64) {
+            if (this.type == StorageType.GAS) {
+                modid = "mekeng";
+                itemName = "gas_core_" + this.tier.kb + "k";
+                meta = 0;
+            } else {
+                modid = "appliedenergistics2";
+                if (this.type == StorageType.ITEM) {
+                    if (this.tier == StorageTier.T_1K) meta = 35;
+                    else if (this.tier == StorageTier.T_4K) meta = 36;
+                    else if (this.tier == StorageTier.T_16K) meta = 37;
+                    else if (this.tier == StorageTier.T_64K) meta = 38;
+                } else if (this.type == StorageType.FLUID) {
+                    if (this.tier == StorageTier.T_1K) meta = 54;
+                    else if (this.tier == StorageTier.T_4K) meta = 55;
+                    else if (this.tier == StorageTier.T_16K) meta = 56;
+                    else if (this.tier == StorageTier.T_64K) meta = 57;
+                }
+            }
+        } else {
+            modid = "nae2";
+            if (this.type == StorageType.ITEM) {
+                if (this.tier == StorageTier.T_256K) meta = 1;
+                else if (this.tier == StorageTier.T_1024K) meta = 2;
+                else if (this.tier == StorageTier.T_4096K) meta = 3;
+                else if (this.tier == StorageTier.T_16384K) meta = 4;
+            } else if (this.type == StorageType.FLUID) {
+                if (this.tier == StorageTier.T_256K) meta = 5;
+                else if (this.tier == StorageTier.T_1024K) meta = 6;
+                else if (this.tier == StorageTier.T_4096K) meta = 7;
+                else if (this.tier == StorageTier.T_16384K) meta = 8;
+            } else if (this.type == StorageType.GAS) {
+                if (this.tier == StorageTier.T_256K) meta = 9;
+                else if (this.tier == StorageTier.T_1024K) meta = 10;
+                else if (this.tier == StorageTier.T_4096K) meta = 11;
+                else if (this.tier == StorageTier.T_16384K) meta = 12;
+            }
+        }
+
+        Item materialItem = Item.getByNameOrId(modid + ":" + itemName);
+        if (materialItem != null) {
+            return new ItemStack(materialItem, 1, meta);
+        }
+
+        return ItemStack.EMPTY;
     }
 
     @Override

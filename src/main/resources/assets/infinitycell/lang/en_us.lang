@@ -13,6 +13,8 @@ item.fluid_cell_1k.name=Deep 1k Fluid Storage Cell
 item.fluid_cell_4k.name=Deep 4k Fluid Storage Cell
 item.fluid_cell_16k.name=Deep 16k Fluid Storage Cell
 item.fluid_cell_64k.name=Deep 64k Fluid Storage Cell
+
+item.advanced_cell_housing.name=Advanced ME Storage Housing
 item.fluid_cell_256k.name=Deep 256k Fluid Storage Cell
 item.fluid_cell_1024k.name=Deep 1024k Fluid Storage Cell
 item.fluid_cell_4096k.name=Deep 4096k Fluid Storage Cell

@@ -12,6 +12,15 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraft.item.crafting.IRecipe;
+import net.minecraft.item.crafting.Ingredient;
+import net.minecraftforge.registries.IForgeRegistry;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.item.crafting.IRecipe;
+import net.minecraft.item.crafting.Ingredient;
+import net.minecraftforge.registries.IForgeRegistry;
+import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraft.util.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -82,6 +91,9 @@ public class InfinityCell
         for (AdvancedCellItem cell : ADVANCED_CELLS) {
             event.getRegistry().register(cell);
         }
+        for (com.mcdyc.infinitycell.item.AdvancedCellHousingItem housing : AdvancedCellItem.CELL_HOUSINGS) {
+            event.getRegistry().register(housing);
+        }
         event.getRegistry().register(new com.mcdyc.infinitycell.item.DebugInjectorItem());
     }
 
@@ -98,12 +110,45 @@ public class InfinityCell
                     new net.minecraft.client.renderer.block.model.ModelResourceLocation(cell.getRegistryName(), "inventory")
             );
         }
+        for (com.mcdyc.infinitycell.item.AdvancedCellHousingItem housing : AdvancedCellItem.CELL_HOUSINGS) {
+            net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
+                    housing, 0,
+                    new net.minecraft.client.renderer.block.model.ModelResourceLocation(housing.getRegistryName(), "inventory")
+            );
+        }
         Item debugItem = net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.getValue(new net.minecraft.util.ResourceLocation("infinitycell", "debug_injector"));
         if(debugItem != null) {
             net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
                 debugItem, 0,
                 new net.minecraft.client.renderer.block.model.ModelResourceLocation("minecraft:stick", "inventory")
             );
+        }
+    }
+
+    /**
+     * 合成配方注册阶段！在此批量注册所有外壳+组件的无序合成。
+     */
+    @SubscribeEvent
+    public static void registerRecipes(RegistryEvent.Register<IRecipe> event)
+    {
+        IForgeRegistry<IRecipe> registry = event.getRegistry();
+        if (AdvancedCellItem.CELL_HOUSINGS.isEmpty()) return;
+        Item housing = AdvancedCellItem.CELL_HOUSINGS.get(0);
+
+        for (AdvancedCellItem cell : ADVANCED_CELLS) {
+            net.minecraft.item.ItemStack componentStack = cell.getOriginalComponent();
+            if (!componentStack.isEmpty()) {
+                // 生成 Shapeless 配方：外壳 + 老式组件 = 我们的高级存储盘
+                ResourceLocation recipeName = new ResourceLocation(Tags.MOD_ID, cell.getRegistryName().getPath() + "_recipe");
+                net.minecraftforge.oredict.ShapelessOreRecipe recipe = new net.minecraftforge.oredict.ShapelessOreRecipe(
+                        recipeName,
+                        new net.minecraft.item.ItemStack(cell),
+                        net.minecraft.item.crafting.Ingredient.fromItem(housing),
+                        net.minecraft.item.crafting.Ingredient.fromStacks(componentStack)
+                );
+                recipe.setRegistryName(recipeName);
+                registry.register(recipe);
+            }
         }
     }
 }
