@@ -6,17 +6,22 @@ item.item_cell_256k.name=§4256k§f-ME物品深度存储元件
 item.item_cell_1024k.name=§61024k§f-ME物品深度存储元件
 item.item_cell_4096k.name=§e4096k§f-ME物品深度存储元件
 item.item_cell_16384k.name=§a16384k§f-ME物品深度存储元件
-item.item_cell_inf.name=#7594F0-8C35E3-4C4C4DINFINITE§f-ME物品存储元件
+item.item_cell_inf.name=§dINFINITE§f-ME物品存储元件
 
 item.fluid_cell_1k.name=§61k§f-ME流体深度存储元件
 item.fluid_cell_4k.name=§e4k§f-ME流体深度存储元件
 item.fluid_cell_16k.name=§a16k§f-ME流体深度存储元件
 item.fluid_cell_64k.name=§b64k§f-ME流体深度存储元件
+
+item.advanced_cell_housing.name=高级ME存储元件外壳
+item.infinite_component_item.name=无限物品组件
+item.infinite_component_fluid.name=无限流体组件
+item.infinite_component_gas.name=无限气体组件
 item.fluid_cell_256k.name=§4256k§f-ME流体深度存储元件
 item.fluid_cell_1024k.name=§61024k§f-ME流体深度存储元件
 item.fluid_cell_4096k.name=§e4096k§f-ME流体深度存储元件
 item.fluid_cell_16384k.name=§a16384k§f-ME流体深度存储元件
-item.fluid_cell_inf.name=#7594F0-8C35E3-4C4C4DINFINITE§f-ME流体存储元件
+item.fluid_cell_inf.name=§dINFINITE§f-ME流体存储元件
 
 item.gas_cell_1k.name=§61k§f-ME气体深度存储元件
 item.gas_cell_4k.name=§e4k§f-ME气体深度存储元件
@@ -26,16 +31,10 @@ item.gas_cell_256k.name=§4256k§f-ME气体深度存储元件
 item.gas_cell_1024k.name=§61024k§f-ME气体深度存储元件
 item.gas_cell_4096k.name=§e4096k§f-ME气体深度存储元件
 item.gas_cell_16384k.name=§a16384k§f-ME气体深度存储元件
-item.gas_cell_inf.name=#7594F0-8C35E3-4C4C4DINFINITE§f-ME气体存储元件
-
-# Others
-item.advanced_cell_housing.name=高级ME存储元件外壳
-item.infinite_component_item.name=#7594F0-8C35E3-4C4C4DINFINITE§f-ME物品存储组件
-item.infinite_component_fluid.name=#7594F0-8C35E3-4C4C4DINFINITE§f-ME流体存储组件
-item.infinite_component_gas.name=#7594F0-8C35E3-4C4C4DINFINITE§f-ME气体存储组件
+item.gas_cell_inf.name=§dINFINITE§f-ME气体存储元件
 
 # Tooltip
 infinitycell.tooltip.uuid=§8UUID: %s
 infinitycell.tooltip.uuid_unassigned=§8UUID: §7[未分配]
-infinitycell.tooltip.used_total_bytes=§a%s §7 / §c%s §7字节已使用
-infinitycell.tooltip.capacity_infinite=§a%s§7 / §f#7594F0-8C35E3-4C4C4DINFINITE §7类型
+infinitycell.tooltip.used_total_bytes=§b已用: §f%s §8/ §f%s §8Bytes
+infinitycell.tooltip.capacity_infinite=§d容量: %s/INFINITE
