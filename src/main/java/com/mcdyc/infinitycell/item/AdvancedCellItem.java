@@ -236,6 +236,7 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
     }
 
     public static final List<AdvancedCellHousingItem> CELL_HOUSINGS = new ArrayList<>();
+    public static final List<InfiniteComponentItem> INFINITE_COMPONENTS = new ArrayList<>();
 
     /**
      * 工厂方法：动态生成所有支持的磁盘物品列表
@@ -243,12 +244,19 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
     public static List<AdvancedCellItem> createAllDisks()
     {
         List<AdvancedCellItem> disks = new ArrayList<>();
-        
+
         // 我们只生成一个通用的外壳
         CELL_HOUSINGS.add(new AdvancedCellHousingItem());
 
         boolean hasGas = Platform.isModLoaded("mekeng");
         boolean hasNAE2 = Platform.isModLoaded("nae2");
+
+        // 创建无限组件（物品、流体、气体三种）
+        INFINITE_COMPONENTS.add(new InfiniteComponentItem(InfiniteComponentItem.ComponentType.ITEM));
+        INFINITE_COMPONENTS.add(new InfiniteComponentItem(InfiniteComponentItem.ComponentType.FLUID));
+        if (hasGas) {
+            INFINITE_COMPONENTS.add(new InfiniteComponentItem(InfiniteComponentItem.ComponentType.GAS));
+        }
 
         for (StorageTier tier : StorageTier.values()) {
             boolean shouldRegister = true;
@@ -269,7 +277,24 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
     }
 
     public ItemStack getOriginalComponent() {
-        if (this.tier == StorageTier.INF) return ItemStack.EMPTY;
+        // 对于无限磁盘，返回对应的无限组件
+        if (this.tier == StorageTier.INF) {
+            InfiniteComponentItem.ComponentType componentType;
+            if (this.type == StorageType.FLUID) {
+                componentType = InfiniteComponentItem.ComponentType.FLUID;
+            } else if (this.type == StorageType.GAS) {
+                componentType = InfiniteComponentItem.ComponentType.GAS;
+            } else {
+                componentType = InfiniteComponentItem.ComponentType.ITEM;
+            }
+
+            for (InfiniteComponentItem component : INFINITE_COMPONENTS) {
+                if (component.type == componentType) {
+                    return new ItemStack(component);
+                }
+            }
+            return ItemStack.EMPTY;
+        }
 
         String modid = "";
         String itemName = "material";

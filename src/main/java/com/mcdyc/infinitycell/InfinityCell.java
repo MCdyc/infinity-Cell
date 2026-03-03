@@ -94,6 +94,9 @@ public class InfinityCell
         for (com.mcdyc.infinitycell.item.AdvancedCellHousingItem housing : AdvancedCellItem.CELL_HOUSINGS) {
             event.getRegistry().register(housing);
         }
+        for (com.mcdyc.infinitycell.item.InfiniteComponentItem component : AdvancedCellItem.INFINITE_COMPONENTS) {
+            event.getRegistry().register(component);
+        }
         event.getRegistry().register(new com.mcdyc.infinitycell.item.DebugInjectorItem());
     }
 
@@ -114,6 +117,12 @@ public class InfinityCell
             net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
                     housing, 0,
                     new net.minecraft.client.renderer.block.model.ModelResourceLocation(housing.getRegistryName(), "inventory")
+            );
+        }
+        for (com.mcdyc.infinitycell.item.InfiniteComponentItem component : AdvancedCellItem.INFINITE_COMPONENTS) {
+            net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
+                    component, 0,
+                    new net.minecraft.client.renderer.block.model.ModelResourceLocation(component.getRegistryName(), "inventory")
             );
         }
         Item debugItem = net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.getValue(new net.minecraft.util.ResourceLocation("infinitycell", "debug_injector"));

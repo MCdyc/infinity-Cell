@@ -14,6 +14,9 @@ item.fluid_cell_16k.name=§a16k§f-ME流体深度存储元件
 item.fluid_cell_64k.name=§b64k§f-ME流体深度存储元件
 
 item.advanced_cell_housing.name=高级ME存储元件外壳
+item.infinite_component_item.name=无限物品组件
+item.infinite_component_fluid.name=无限流体组件
+item.infinite_component_gas.name=无限气体组件
 item.fluid_cell_256k.name=§4256k§f-ME流体深度存储元件
 item.fluid_cell_1024k.name=§61024k§f-ME流体深度存储元件
 item.fluid_cell_4096k.name=§e4096k§f-ME流体深度存储元件
