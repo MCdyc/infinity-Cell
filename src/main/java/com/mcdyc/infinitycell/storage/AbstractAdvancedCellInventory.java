@@ -284,7 +284,12 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
 
     protected void saveChanges()
     {
-        data.markDirty();
+        // 如果数据为空，清除 dirty 标记而不是设置，防止创建空文件
+        if (data.isEmpty()) {
+            data.clearDirty();
+        } else {
+            data.markDirty();
+        }
         if (saveProvider != null) {
             saveProvider.saveChanges(this);
         }

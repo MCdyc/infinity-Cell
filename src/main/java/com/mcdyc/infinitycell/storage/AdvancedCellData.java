@@ -108,6 +108,21 @@ public class AdvancedCellData extends WorldSavedData
         return true;
     }
 
+    /**
+     * 清除 dirty 标记，用于分离空磁盘时防止重新保存。
+     * WorldSavedData.dirty 是 protected 字段，通过反射访问。
+     */
+    public void clearDirty()
+    {
+        try {
+            java.lang.reflect.Field dirtyField = WorldSavedData.class.getDeclaredField("dirty");
+            dirtyField.setAccessible(true);
+            dirtyField.set(this, false);
+        } catch (Exception e) {
+            // 反射失败时静默忽略，方案三的 isEmpty() 检查仍会生效
+        }
+    }
+
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound nbt)
     {

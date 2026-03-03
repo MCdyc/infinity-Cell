@@ -158,9 +158,20 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
                                     }
                                 }
 
-                                // 4. 删除对应的 UUID 数据文件
+                                // 4. 删除对应的 UUID 数据文件并清除内存对象
                                 if (stack.hasTagCompound() && stack.getTagCompound().hasKey("disk_uuid")) {
                                     String uuid = stack.getTagCompound().getString("disk_uuid");
+                                    String dataKey = "infinite/" + uuid;
+
+                                    // 清除内存中的数据对象的 dirty 标记，防止世界保存时重新创建文件
+                                    com.mcdyc.infinitycell.storage.AdvancedCellData memoryData =
+                                            (com.mcdyc.infinitycell.storage.AdvancedCellData) worldIn.getMapStorage()
+                                                    .getOrLoadData(com.mcdyc.infinitycell.storage.AdvancedCellData.class, dataKey);
+                                    if (memoryData != null) {
+                                        memoryData.clearDirty();
+                                    }
+
+                                    // 删除物理文件
                                     java.io.File infiniteDir = new java.io.File(worldIn.getSaveHandler().getWorldDirectory(), "data/infinite");
                                     java.io.File dataFile = new java.io.File(infiniteDir, uuid + ".dat");
                                     if (dataFile.exists()) {
