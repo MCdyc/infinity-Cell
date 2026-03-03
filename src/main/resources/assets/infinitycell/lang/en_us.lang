@@ -7,7 +7,7 @@ item.item_cell_256k.name=Deep 256k Item Storage Cell
 item.item_cell_1024k.name=Deep 1024k Item Storage Cell
 item.item_cell_4096k.name=Deep 4096k Item Storage Cell
 item.item_cell_16384k.name=Deep 16384k Item Storage Cell
-item.item_cell_inf.name=Infinite Item Storage Cell
+item.item_cell_inf.name=§dInfinite Item Storage Cell
 
 item.fluid_cell_1k.name=Deep 1k Fluid Storage Cell
 item.fluid_cell_4k.name=Deep 4k Fluid Storage Cell
@@ -22,7 +22,7 @@ item.fluid_cell_256k.name=Deep 256k Fluid Storage Cell
 item.fluid_cell_1024k.name=Deep 1024k Fluid Storage Cell
 item.fluid_cell_4096k.name=Deep 4096k Fluid Storage Cell
 item.fluid_cell_16384k.name=Deep 16384k Fluid Storage Cell
-item.fluid_cell_inf.name=Infinite Fluid Storage Cell
+item.fluid_cell_inf.name=§dInfinite Fluid Storage Cell
 
 item.gas_cell_1k.name=Deep 1k Gas Storage Cell
 item.gas_cell_4k.name=Deep 4k Gas Storage Cell
@@ -32,11 +32,11 @@ item.gas_cell_256k.name=Deep 256k Gas Storage Cell
 item.gas_cell_1024k.name=Deep 1024k Gas Storage Cell
 item.gas_cell_4096k.name=Deep 4096k Gas Storage Cell
 item.gas_cell_16384k.name=Deep 16384k Gas Storage Cell
-item.gas_cell_inf.name=Infinite Gas Storage Cell
+item.gas_cell_inf.name=§dInfinite Gas Storage Cell
 
 # Tooltip
 infinitycell.tooltip.uuid=§8UUID: %s
 infinitycell.tooltip.uuid_unassigned=§8UUID: §7[Unassigned]
 infinitycell.tooltip.used_total_bytes=§bUsed: §f%s §8/ §f%s §8Bytes
-# Gradient INFINITE label: #7594F0(§9 blue)→#8C35E3(§5 dark purple)→#4C4C4D(§8 dark gray)
-infinitycell.tooltip.capacity_infinite=#7594F0-8C35E3-4C4C4DCapacity: %s/Infinite
+# Gradient INFINITE label (fallback): §d (light purple)
+infinitycell.tooltip.capacity_infinite=§dCapacity: %s/Infinite
