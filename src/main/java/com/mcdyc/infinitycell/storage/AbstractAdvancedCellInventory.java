@@ -137,7 +137,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getUsedBytes()
     {
-        return data.getChannelData(channel).totalBytes;
+        return data.getChannelData(channel).getDisplayBytes();
     }
 
     @Override
@@ -149,7 +149,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getStoredItemCount()
     {
-        return data.getChannelData(channel).totalItemCount;
+        return data.getChannelData(channel).getDisplayItemCount();
     }
 
     @Override

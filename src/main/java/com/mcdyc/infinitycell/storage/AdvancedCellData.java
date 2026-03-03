@@ -23,8 +23,10 @@ public class AdvancedCellData extends WorldSavedData
     {
         public Object2LongMap<T> counts = new it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap<>();
         public long totalBytes = 0;
+        public long totalBytesOverflow = 0; // 高位，记录爆了多少次 Long.MAX_VALUE
         public long totalTypes = 0;
         public long totalItemCount = 0;
+        public long totalItemCountOverflow = 0; // 高位，记录爆了多少次 Long.MAX_VALUE
 
         // 增量 NBT 缓存支持：避免每次保存都把几十万个物品重新转化一遍 NBT
         private final it.unimi.dsi.fastutil.objects.Object2ObjectMap<T, NBTTagCompound> nbtCache =
@@ -47,9 +49,65 @@ public class AdvancedCellData extends WorldSavedData
                 counts.put(stack, newCount);
                 dirtyItems.add(stack);  // 标记为脏数据，等待下一次落盘时只序列化它
             }
-            this.totalItemCount += deltaCount;
-            this.totalBytes += deltaBytes;
+
+            // 模拟 int128：双 long 加减法计算总物品数
+            if (deltaCount > 0) {
+                if (Long.MAX_VALUE - this.totalItemCount < deltaCount) {
+                    this.totalItemCountOverflow++;
+                    // 进位后，原数值减去所需差额，等价于 (this.totalItemCount + deltaCount) - Long.MAX_VALUE
+                    this.totalItemCount = deltaCount - (Long.MAX_VALUE - this.totalItemCount);
+                } else {
+                    this.totalItemCount += deltaCount;
+                }
+            } else if (deltaCount < 0) {
+                long absDelta = -deltaCount;
+                if (this.totalItemCount < absDelta) {
+                    if (this.totalItemCountOverflow > 0) {
+                        this.totalItemCountOverflow--;
+                        // 借位后，用借来的 Long.MAX_VALUE 补足差额
+                        this.totalItemCount = Long.MAX_VALUE - (absDelta - this.totalItemCount);
+                    } else {
+                        this.totalItemCount = 0; // 防止负向底穿
+                    }
+                } else {
+                    this.totalItemCount += deltaCount;
+                }
+            }
+            
+            // 模拟 int128：双 long 加减法计算总字节数
+            if (deltaBytes > 0) {
+                if (Long.MAX_VALUE - this.totalBytes < deltaBytes) {
+                    this.totalBytesOverflow++;
+                    this.totalBytes = deltaBytes - (Long.MAX_VALUE - this.totalBytes);
+                } else {
+                    this.totalBytes += deltaBytes;
+                }
+            } else if (deltaBytes < 0) {
+                long absDelta = -deltaBytes;
+                if (this.totalBytes < absDelta) {
+                    if (this.totalBytesOverflow > 0) {
+                        this.totalBytesOverflow--;
+                        this.totalBytes = Long.MAX_VALUE - (absDelta - this.totalBytes);
+                    } else {
+                        this.totalBytes = 0; // 防止负向底穿
+                    }
+                } else {
+                    this.totalBytes += deltaBytes;
+                }
+            }
+
             this.totalTypes += deltaTypes;
+        }
+
+        /**
+         * 供外部获取安全的单一 long 数值（用于显示或网络发包）
+         */
+        public long getDisplayItemCount() {
+            return this.totalItemCountOverflow > 0 ? Long.MAX_VALUE : this.totalItemCount;
+        }
+
+        public long getDisplayBytes() {
+            return this.totalBytesOverflow > 0 ? Long.MAX_VALUE : this.totalBytes;
         }
 
         /**
@@ -137,8 +195,10 @@ public class AdvancedCellData extends WorldSavedData
 
             ChannelData<?> data = entry.getValue();
             channelNbt.setLong("TotalBytes", data.totalBytes);
+            channelNbt.setLong("TotalBytesOverflow", data.totalBytesOverflow);
             channelNbt.setLong("TotalTypes", data.totalTypes);
             channelNbt.setLong("TotalItemCount", data.totalItemCount);
+            channelNbt.setLong("TotalItemCountOverflow", data.totalItemCountOverflow);
 
             channelNbt.setTag("Items", data.getOrUpdateNbtList());
 
@@ -178,8 +238,10 @@ public class AdvancedCellData extends WorldSavedData
     {
         ChannelData<T> data = getChannelData(channel);
         data.totalBytes = channelNbt.getLong("TotalBytes");
+        data.totalBytesOverflow = channelNbt.getLong("TotalBytesOverflow");
         data.totalTypes = channelNbt.getLong("TotalTypes");
         data.totalItemCount = channelNbt.getLong("TotalItemCount");
+        data.totalItemCountOverflow = channelNbt.getLong("TotalItemCountOverflow");
 
         // 读取完毕后，下达全局脏指令，让缓存和真实计数器同步
         data.isFullDirty = true;
