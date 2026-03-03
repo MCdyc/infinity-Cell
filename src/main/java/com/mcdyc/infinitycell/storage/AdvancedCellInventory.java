@@ -25,6 +25,14 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     // 磁盘的物品定义类，用于读取阶层 / 类型信息
     private final AdvancedCellItem parentItem;
 
+    /**
+     * 构建一个有限约束的磁盘库存处理器。
+     * 会在初始化时解析物品自身设定的阶层约束和类型（最大允许占据的字节数上限）。
+     *
+     * @param cellItem     表示此存储元件栈的实际物理物品。
+     * @param saveProvider 管理存储状态并将数据同步至服务端持久化机制的服务提供者。
+     * @param channel      此元件映射的数据通道形式（如：物品/流体/气体）。
+     */
     public AdvancedCellInventory(ItemStack cellItem, ISaveProvider saveProvider, IStorageChannel<T> channel)
     {
         super(cellItem, saveProvider, channel);
@@ -47,6 +55,15 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     //  注入逻辑：带容量上限拦截
     // -------------------------------------------------------------------------
 
+    /**
+     * 向该有限盘注入物品的拦截与处理逻辑。
+     * 会同时检查种类上限和字节占用余量（剩余空间），剩余空间不足时会发生截断退回。
+     *
+     * @param input 即将存入系统的对象引用样例及数量。
+     * @param type  指明此操作为模拟探测（SIMULATE）或是真实写入（MODULATE）。
+     * @param src   指明触发写入的源头。
+     * @return 那些塞不下而被退绝返回的物品栈，如果全部消化完毕则为 null。
+     */
     @Override
     public T injectItems(T input, Actionable type, IActionSource src)
     {
@@ -101,36 +118,60 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     //  容量信息
     // -------------------------------------------------------------------------
 
+    /**
+     * 获取总容量字节数。
+     * @return 本元件设定的容量天花板。
+     */
     @Override
     public long getTotalBytes()
     {
         return maxBytes;
     }
 
+    /**
+     * 获取剩余的可用字节数。
+     * @return 最大受限容量扣除已用字节数之差，确保返回不小于0的数据。
+     */
     @Override
     public long getFreeBytes()
     {
         return Math.max(0, maxBytes - getUsedBytes());
     }
 
+    /**
+     * 获取最大许可的存入种类数。
+     * @return 63 种（如果是传统的 1K-64K 物品盘）。在我们的系统里所有有限盘都不限制种类。
+     */
     @Override
     public long getTotalItemTypes()
     {
         return maxTypes;
     }
 
+    /**
+     * 盘内仍然可容纳的新独立种类数量。
+     * @return 种类容量天花板与当前已存种子的差。
+     */
     @Override
     public long getRemainingItemTypes()
     {
         return Math.max(0, getTotalItemTypes() - getStoredItemTypes());
     }
 
+    /**
+     * 根据当前通道的转换密度，该盘所能塞进的具体基础元件（物品数/流体mB数）。
+     * @return 估算的系统最高上限可容纳数目。
+     */
     @Override
     public long getRemainingItemCount()
     {
         return getFreeBytes() * getUnPerByte();
     }
 
+    /**
+     * 原生旧版兼容接口：获取剩余空位个数（向下兼容到 int）。
+     * @return 被强制降级到不超过 Integer.MAX_VALUE 的物品容量空位。
+     */
     @Override
     public int getUnusedItemCount()
     {
@@ -138,6 +179,10 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
         return remain > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remain;
     }
 
+    /**
+     * 在客户端试图执行拖拽预判验证时调用的简易检查。
+     * @return 若该元件不论是从种类还是从字节容纳来说，都没有被塞满，则反馈 {@code true}。
+     */
     @Override
     public boolean canHoldNewItem()
     {
@@ -145,6 +190,10 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
         return chanData.totalTypes < maxTypes && chanData.totalBytes < maxBytes;
     }
 
+    /**
+     * 主导硬盘被插在 ME 驱动器上时外面三色指示灯的信号。
+     * @return 1=纯绿（正常），2=橙色（逼近75%满载告警），3=红色（数据写满被阻截），4=淡蓝色（完全空）。
+     */
     @Override
     public int getStatusForCell()
     {
