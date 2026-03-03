@@ -41,6 +41,14 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     protected final IStorageChannel<T> channel;
     protected final AdvancedCellData data;
 
+    /**
+     * 抽象父类的共有构造器。
+     * 自动分配加载或接管存档后端的 `AdvancedCellData` 持久化内存映射。
+     *
+     * @param cellItem     表示该磁盘自身实体的物品堆栈。
+     * @param saveProvider 存档世界的数据托管方（如 ME 驱动方块实体）。
+     * @param channel      此元件对应存放物品或流体的通道媒介。
+     */
     protected AbstractAdvancedCellInventory(ItemStack cellItem, ISaveProvider saveProvider,
                                             IStorageChannel<T> channel)
     {
@@ -62,6 +70,18 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         }
 
         String diskUuid = nbt.getString("disk_uuid");
+
+        // 如果是客户端，直接返回内存占位符对象，禁止读写磁盘文件
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            AdvancedCellData proxy = new AdvancedCellData(diskUuid);
+            AdvancedCellData.ChannelData<T> chanData = proxy.getChannelData(channel);
+            if (chanData != null) {
+                chanData.totalBytes = nbt.getLong("UsedBytes");
+                chanData.totalTypes = nbt.getLong("StoredTypes");
+                chanData.totalItemCount = nbt.getLong("StoredItemCount");
+            }
+            return proxy;
+        }
 
         World overworld = DimensionManager.getWorld(0);
         if (overworld == null) {
@@ -89,6 +109,15 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     //  提取逻辑（两个子类完全相同）
     // -------------------------------------------------------------------------
 
+    /**
+     * 提取货物的核心方法。
+     * 当外部尝试从当前元件往外倒腾东西时被触发，由 FastUtil 容器提供性能保障。
+     *
+     * @param request 期待被取出的一批物品样板清单与数量。
+     * @param mode    动作指示标签：SIMULATE 为只探测余额不真扣钱，MODULATE 为来真的扣减并同步磁盘状态。
+     * @param src     事件下达的指令源动作发起人。
+     * @return 如果盘里并没有想要找的此类库存或数量为零，返回 null；有货则按实际存在值返回满足其要求的分量。
+     */
     @Override
     public T extractItems(T request, Actionable mode, IActionSource src)
     {
@@ -118,6 +147,13 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     //  可用物品列举（两个子类完全相同）
     // -------------------------------------------------------------------------
 
+    /**
+     * 获取此刻盘内所有有存货的实物列表清单，它是 ME 网络向终端 UI 发送清单数据包的基石。
+     * 将我们独立构建的 `counts` 快速查找表里的元素挨个转换成 AE 网络认得出来的可读格式发走。
+     *
+     * @param out 需要装满并传出来的初始空气链表。
+     * @return 装满此盘存货种类的链表句柄。
+     */
     @Override
     public IItemList<T> getAvailableItems(IItemList<T> out)
     {
@@ -134,18 +170,27 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     //  统计查询（两个子类完全相同）
     // -------------------------------------------------------------------------
 
+    /**
+     * @return 当前盘已被占据的总体积大小字节统计。
+     */
     @Override
     public long getUsedBytes()
     {
         return data.getChannelData(channel).getDisplayBytes();
     }
 
+    /**
+     * @return 当前盘内混放着的各类不一样物品 ID 的品种数量总和。
+     */
     @Override
     public long getStoredItemTypes()
     {
         return data.getChannelData(channel).totalTypes;
     }
 
+    /**
+     * @return 当前这块盘内部收容下的物料原子的绝对微观单体总数。
+     */
     @Override
     public long getStoredItemCount()
     {
@@ -282,6 +327,11 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         saveChanges();
     }
 
+    /**
+     * 当盘内数据有实质性流转出入时调用。
+     * 打上脏标记以便主分时保存循环知道下一次得将这块内存落盘；
+     * 并将少量前台信息反写至本元件 NBT 提供外网Tooltip浮窗读取支持；最后通知宿主环境变更。
+     */
     protected void saveChanges()
     {
         // 如果数据为空，清除 dirty 标记而不是设置，防止创建空文件

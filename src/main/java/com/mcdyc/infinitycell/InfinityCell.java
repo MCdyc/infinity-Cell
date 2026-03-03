@@ -42,7 +42,10 @@ public class InfinityCell
     public static final List<AdvancedCellItem> ADVANCED_CELLS = AdvancedCellItem.createAllDisks();
 
     /**
-     * Pre-Init 阶段。这时候世界还没创生。多用来做配置文件的数据载入动作。
+     * Forge Pre-Initialization 阶段事件处理。
+     * 这个阶段通常用于读取配置文件、注册方块和物品（在新的 RegistryEvent 出现前）、以及初始化日志。
+     *
+     * @param event FML 提供的预初始化事件对象，包含模组元数据和配置目录等信息。
      */
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event)
@@ -51,8 +54,11 @@ public class InfinityCell
     }
 
     /**
-     * Init 阶段。在这个阶段，所有的其他大型模组（比如 AE2）的核心系统已经加载完毕浮出水面。
-     * 只有现在，我们才能去敲门塞东西给它。
+     * Forge Initialization 阶段事件处理。
+     * 在这个阶段，大部分基础模组（如 AE2）的核心系统已经加载完毕。
+     * 适合在这里进行需要依赖其他模组 API 的操作，例如注册 AE2 的自定义存储拦截器。
+     *
+     * @param event FML 提供的初始化事件对象。
      */
     @Mod.EventHandler
     public void init(FMLInitializationEvent event)
@@ -81,6 +87,12 @@ public class InfinityCell
         }
     }
 
+    /**
+     * Forge 服务器启动阶段事件处理。
+     * 在这里可以注册仅在服务端运行的指令（命令）。
+     *
+     * @param event FML 提供的服务器启动事件对象。
+     */
     @Mod.EventHandler
     public void serverStarting(net.minecraftforge.fml.common.event.FMLServerStartingEvent event)
     {
@@ -88,7 +100,11 @@ public class InfinityCell
     }
 
     /**
-     * 物品注册表列装阶段！在这个期间，Forge 发着大门禁宣告：“所有新模组的人现在可以把自己的物品加到世界的游戏白名单词典中了”
+     * Forge 物品注册事件订阅方法。
+     * 在此阶段，模组将其所有的自定义物品注册到游戏内统一的物品注册表中（Registry）。
+     * 这里会通过工厂类生成并注册所有等级的存储元件、外壳、组件，以及专用的调试工具。
+     *
+     * @param event Forge 抛出的专门用于注册 {@link Item} 的事件对象。
      */
     @SubscribeEvent
     public static void registerItems(RegistryEvent.Register<Item> event)
@@ -107,7 +123,11 @@ public class InfinityCell
     }
 
     /**
-     * 模型注册阶段！在这里把咱们写好的 json 贴图文件强行绑定到每一个方块和物品身上
+     * Forge 客户端模型注册事件订阅方法。
+     * 将为已注册的物品绑定其对应的贴图、 JSON 模型。这是一个仅在客户端执行的方法。
+     * 确保物品在物品栏中有正确的外观显示，而不是缺少材质的紫黑方块。
+     *
+     * @param event Forge 提供的模型注册事件。
      */
     @SubscribeEvent
     @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
@@ -141,7 +161,11 @@ public class InfinityCell
     }
 
     /**
-     * 合成配方注册阶段！在此批量注册所有外壳+组件的无序合成。
+     * Forge 配方注册事件订阅方法。
+     * 在此阶段，将为模组中的物品添加合成规则（例如：无序配方），
+     * 将高级存储组件与外壳拼装成终极存储物品。
+     *
+     * @param event Forge 提供的专门用于注册 {@link IRecipe} 的事件对象。
      */
     @SubscribeEvent
     public static void registerRecipes(RegistryEvent.Register<IRecipe> event)

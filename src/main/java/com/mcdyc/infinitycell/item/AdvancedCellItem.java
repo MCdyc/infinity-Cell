@@ -21,7 +21,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class AdvancedCellItem extends Item implements appeng.api.implementations.items.IStorageCell, appeng.api.implementations.guiobjects.IGuiItem
+/**
+ * 核心存储元件物品类。
+ * 代表了玩家库存和网络中的所有等级、所有类型（物品/流体/气体）存储磁盘实体。
+ * 实现了 AE2 的存储设备以及便携式 GUI 接口。
+ */
+public class AdvancedCellItem extends Item implements appeng.api.implementations.items.IStorageCell
 {
     /**
      * 自定义创造模式物品栏标签，图标使用 64k 物品盘
@@ -105,14 +110,18 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         }
     }
 
-    @Override
-    public appeng.api.implementations.guiobjects.IGuiItemObject getGuiObject(ItemStack is, World w, net.minecraft.util.math.BlockPos pos) {
-        if (this.type == StorageType.ITEM) {
-            return new com.mcdyc.infinitycell.storage.InfinityCellViewer(is, pos.getX());
-        }
-        return null;
-    }
 
+    /**
+     * 玩家右键交互事件重写。
+     * 如果处于潜行并右击空气，则尝试执行“拆解磁盘”的逻辑：
+     * 判断内部为空后，销毁后端 UUID 数据文件，退还组件核心和外壳并销毁此物品本身；
+     * 如果未潜行且为物品型存储磁盘，则当作便携式存储终端主动打开面板。
+     *
+     * @param worldIn  当前执行交互的世界。
+     * @param playerIn 执行交互动作的玩家实体。
+     * @param handIn   玩家当下执行动作的手部（主/副手）。
+     * @return 该交互产生的结果与所影响的物品状态。
+     */
     @Override
     public net.minecraft.util.ActionResult<ItemStack> onItemRightClick(World worldIn, net.minecraft.entity.player.EntityPlayer playerIn, net.minecraft.util.EnumHand handIn)
     {
@@ -201,10 +210,6 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
                     }
                 }
             }
-        } else if (!playerIn.isSneaking() && !worldIn.isRemote && this.type == StorageType.ITEM) {
-            // Simulator Portable Cell behavior
-            Platform.openGUI(playerIn, null, appeng.api.util.AEPartLocation.INTERNAL, appeng.core.sync.GuiBridge.GUI_PORTABLE_CELL);
-            return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.SUCCESS, stack);
         }
 
         return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.PASS, stack);
@@ -299,6 +304,11 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         return disks;
     }
 
+    /**
+     * 内部解析方法，根据自身 Tier 以及通道类型，反向推理其制作此磁盘时“理应包含”的对应旧式存储组件类型，以便在分离磁盘时予以归还。
+     *
+     * @return 此磁盘对应的原版/模组附加原生存储组件的物品栈（例如：AE2原版 64k组件、NAE2的 4096k流体组件 等）。若未能推导则返回空栈。
+     */
     public ItemStack getOriginalComponent() {
         // 对于无限磁盘，返回对应的无限组件
         if (this.tier == StorageTier.INF) {
@@ -370,6 +380,11 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         return ItemStack.EMPTY;
     }
 
+    /**
+     * 获取当前磁盘所映射绑定的 AE2 通道处理器引用。
+     *
+     * @return 物品通道、流体通道或来自外置模组的气体通道对象。如果获取失败则返回 null。
+     */
     @Override
     public appeng.api.storage.IStorageChannel getChannel() {
         if (this.type == StorageType.FLUID) {

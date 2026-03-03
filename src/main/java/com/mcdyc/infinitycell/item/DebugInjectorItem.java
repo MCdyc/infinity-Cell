@@ -17,7 +17,16 @@ import net.minecraft.util.EnumHand;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.World;
 
+/**
+ * 开发者专用调试物品（无纹理棒子）。
+ * 用于对放在副手的“无限存储盘”进行极限压力测试，包括快速填入巨量同种物品、以及 10 万种不同 NBT 的苹果，
+ * 测试无限盘在海量数据下的注入与承载性能。
+ */
 public class DebugInjectorItem extends Item {
+
+    /**
+     * 构造并注册一个专用的调试注射器物品。
+     */
     public DebugInjectorItem() {
         this.setRegistryName("debug_injector");
         this.setTranslationKey("debug_injector");
@@ -25,6 +34,15 @@ public class DebugInjectorItem extends Item {
         this.setMaxStackSize(1);
     }
 
+    /**
+     * 右键点击事件：执行对副手中的无限存储盘的压力灌注测试。
+     * 仅在服务端真正执行逻辑。
+     *
+     * @param worldIn  当前点击时所处的世界上下文。
+     * @param playerIn 执行点击的玩家（需要其副手中握有 INF 元件）。
+     * @param handIn   当前进行操作的手部（主手）。
+     * @return 操作结果，若成功则返回 SUCCESS 并附带信息。
+     */
     @Override
     public ActionResult<ItemStack> onItemRightClick(World worldIn, EntityPlayer playerIn, EnumHand handIn) {
         if (worldIn.isRemote) {

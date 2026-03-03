@@ -7,22 +7,17 @@ item.item_cell_256k.name=Deep 256k Item Storage Cell
 item.item_cell_1024k.name=Deep 1024k Item Storage Cell
 item.item_cell_4096k.name=Deep 4096k Item Storage Cell
 item.item_cell_16384k.name=Deep 16384k Item Storage Cell
-item.item_cell_inf.name=§dInfinite Item Storage Cell
+item.item_cell_inf.name=#7594F0-8C35E3-4C4C4DINFINITE§f Item Storage Cell
 
 item.fluid_cell_1k.name=Deep 1k Fluid Storage Cell
 item.fluid_cell_4k.name=Deep 4k Fluid Storage Cell
 item.fluid_cell_16k.name=Deep 16k Fluid Storage Cell
 item.fluid_cell_64k.name=Deep 64k Fluid Storage Cell
-
-item.advanced_cell_housing.name=Advanced ME Storage Housing
-item.infinite_component_item.name=Infinite Item Component
-item.infinite_component_fluid.name=Infinite Fluid Component
-item.infinite_component_gas.name=Infinite Gas Component
 item.fluid_cell_256k.name=Deep 256k Fluid Storage Cell
 item.fluid_cell_1024k.name=Deep 1024k Fluid Storage Cell
 item.fluid_cell_4096k.name=Deep 4096k Fluid Storage Cell
 item.fluid_cell_16384k.name=Deep 16384k Fluid Storage Cell
-item.fluid_cell_inf.name=§dInfinite Fluid Storage Cell
+item.fluid_cell_inf.name=#7594F0-8C35E3-4C4C4DINFINITE§f Fluid Storage Cell
 
 item.gas_cell_1k.name=Deep 1k Gas Storage Cell
 item.gas_cell_4k.name=Deep 4k Gas Storage Cell
@@ -32,11 +27,16 @@ item.gas_cell_256k.name=Deep 256k Gas Storage Cell
 item.gas_cell_1024k.name=Deep 1024k Gas Storage Cell
 item.gas_cell_4096k.name=Deep 4096k Gas Storage Cell
 item.gas_cell_16384k.name=Deep 16384k Gas Storage Cell
-item.gas_cell_inf.name=§dInfinite Gas Storage Cell
+item.gas_cell_inf.name=#7594F0-8C35E3-4C4C4DINFINITE§f Gas Storage Cell
+
+# Others
+item.advanced_cell_housing.name=Advanced ME Storage Housing
+item.infinite_component_item.name=#7594F0-8C35E3-4C4C4DINFINITE§f Item Storage Component
+item.infinite_component_fluid.name=#7594F0-8C35E3-4C4C4DINFINITE§f Fluid Storage Component
+item.infinite_component_gas.name=#7594F0-8C35E3-4C4C4DINFINITE§f Gas Storage Component
 
 # Tooltip
 infinitycell.tooltip.uuid=§8UUID: %s
 infinitycell.tooltip.uuid_unassigned=§8UUID: §7[Unassigned]
-infinitycell.tooltip.used_total_bytes=§bUsed: §f%s §8/ §f%s §8Bytes
-# Gradient INFINITE label (fallback): §d (light purple)
-infinitycell.tooltip.capacity_infinite=§dCapacity: %s/Infinite
+infinitycell.tooltip.used_total_bytes=§a%s §7 / §c%s §7Bytes Used
+infinitycell.tooltip.capacity_infinite=§a%s§7 / §f#7594F0-8C35E3-4C4C4DINFINITE §7Type

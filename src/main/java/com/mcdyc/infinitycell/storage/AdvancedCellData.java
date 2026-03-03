@@ -35,7 +35,14 @@ public class AdvancedCellData extends WorldSavedData
         private boolean isFullDirty = true; // 初次启动时需要全量重建缓存
 
         /**
-         * 以 O(1) 性能存取海量物品
+         * 以 O(1) 性能存取海量物品。
+         * 处理数量的增减，自动在达到 0 余量时剔除项以保持 map 的干净。
+         * 并维护双 long 作为大数寄存器累加整体数量与字节。
+         *
+         * @param stack      待变动数量的物品样板。
+         * @param deltaCount 欲增加（此值为正）或扣除（此值为负）的真实个数/豪桶数。
+         * @param deltaBytes 根据此次加减行为带来的占用字节数加减。
+         * @param deltaTypes 若因此次操作让该盘内多了一个前所未有的品种则为1，归零出借则为-1，否则为0。
          */
         public void modify(T stack, long deltaCount, long deltaBytes, long deltaTypes)
         {
@@ -100,18 +107,28 @@ public class AdvancedCellData extends WorldSavedData
         }
 
         /**
-         * 供外部获取安全的单一 long 数值（用于显示或网络发包）
+         * 供外部获取安全的单一 long 数值（用于显示或网络发包）。
+         * 如果内部因为无限灌注累计到溢出过了，这里只显示长整型的最大数值以防前端解码成负数异常。
+         * @return 受保护的物品总体积数量。
          */
         public long getDisplayItemCount() {
             return this.totalItemCountOverflow > 0 ? Long.MAX_VALUE : this.totalItemCount;
         }
 
+        /**
+         * 供外部获取安全的总字节数占用显示。
+         * @return 受保护的总字节数占用。
+         */
         public long getDisplayBytes() {
             return this.totalBytesOverflow > 0 ? Long.MAX_VALUE : this.totalBytes;
         }
 
         /**
-         * 增量计算当前频道的所有 NBT 列表
+         * 增量计算当前频道的所有 NBT 列表。
+         * 采用只对本tick被打上脏标记（发生过变动）的那小撮物品做 NBT 序列化，其余的从缓存列表直出的机制，
+         * 用于保障 10 万级的多品种极端存储元件落在磁盘时的瞬时性能（避免停顿）。
+         *
+         * @return 准备交给原生机制落盘的最终成品 NBT 集合。
          */
         public NBTTagList getOrUpdateNbtList()
         {
@@ -168,6 +185,8 @@ public class AdvancedCellData extends WorldSavedData
 
     /**
      * 清除 dirty 标记，用于分离空磁盘时防止重新保存。
+     * 由于 Forge 不提供安全的方法来干掉一个没用的存档数据文件，
+     * 当我们判定这个文件已经可以寿终正寝时，通过反射将父类的 `dirty` 置零强行断开它的求生欲保存脉络。
      * WorldSavedData.dirty 是 protected 字段，通过反射访问。
      */
     public void clearDirty()
