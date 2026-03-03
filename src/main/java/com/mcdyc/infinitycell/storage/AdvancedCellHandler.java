@@ -69,15 +69,25 @@ public class AdvancedCellHandler extends appeng.core.features.registries.cell.Ba
 
     /**
      * 定义该硬盘处于待机静默状态时所消耗的 AE 能量。
+     * 耗电与 AE2 原版保持一致：0.5 * log4(x) + 0.5 AE/t，其中 x 为 KB 数。
+     * 无限元件不耗电 (0.0 AE/t)。
      *
      * @param is      正在被处理的元件物品栈。
      * @param handler 当前掌控此元件的控制器实例。
-     * @return 常驻耗电率（目前定为固定的极小值）。
+     * @return 常驻耗电率。
      */
     @Override
     public double cellIdleDrain(ItemStack is, ICellInventoryHandler handler)
     {
-        return 0.5D; // 原版 64k 差不多也就吃耗电。我们设为固定小耗电
+        if (is != null && is.getItem() instanceof AdvancedCellItem) {
+            AdvancedCellItem cell = (AdvancedCellItem) is.getItem();
+            if (cell.tier == AdvancedCellItem.StorageTier.INF) {
+                return 0.0D;
+            }
+            double log4x = Math.log(cell.tier.kb) / Math.log(4.0);
+            return 0.5D * log4x + 0.5D;
+        }
+        return 0.5D;
     }
 
     /**
