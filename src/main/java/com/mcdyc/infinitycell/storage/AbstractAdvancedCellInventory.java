@@ -56,13 +56,6 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
 
     private AdvancedCellData getOrCreateData()
     {
-        // 客户端物理端检查：防止跨线程访问服务端 MapStorage
-        // SSP 模式下客户端渲染线程并发访问会导致 ConcurrentModificationException
-        // SMP 模式下客户端的 DimensionManager.getWorld(0) 返回 null，无法获取数据
-        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
-            return new AdvancedCellData("client_dummy");
-        }
-
         NBTTagCompound nbt = cellItem.getTagCompound();
         if (nbt == null || !nbt.hasKey("disk_uuid")) {
             return new AdvancedCellData("empty_no_uuid");
@@ -144,30 +137,18 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getUsedBytes()
     {
-        // 客户端从 NBT 读取（服务端已同步），服务端从实际数据读取
-        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
-            return getUsedBytesFromNBT();
-        }
         return data.getChannelData(channel).totalBytes;
     }
 
     @Override
     public long getStoredItemTypes()
     {
-        // 客户端从 NBT 读取（服务端已同步），服务端从实际数据读取
-        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
-            return getStoredTypesFromNBT();
-        }
         return data.getChannelData(channel).totalTypes;
     }
 
     @Override
     public long getStoredItemCount()
     {
-        // 客户端从 NBT 读取（服务端已同步），服务端从实际数据读取
-        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
-            return getStoredItemCountFromNBT();
-        }
         return data.getChannelData(channel).totalItemCount;
     }
 
@@ -334,25 +315,4 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         nbt.setLong("StoredItemCount", chanData.totalItemCount);
     }
 
-    /**
-     * 从 ItemStack 的 NBT 读取统计数据（客户端使用）。
-     * 如果 NBT 中没有数据，返回 0。
-     */
-    private long getUsedBytesFromNBT()
-    {
-        NBTTagCompound nbt = cellItem.getTagCompound();
-        return nbt != null ? nbt.getLong("UsedBytes") : 0;
-    }
-
-    private long getStoredTypesFromNBT()
-    {
-        NBTTagCompound nbt = cellItem.getTagCompound();
-        return nbt != null ? nbt.getLong("StoredTypes") : 0;
-    }
-
-    private long getStoredItemCountFromNBT()
-    {
-        NBTTagCompound nbt = cellItem.getTagCompound();
-        return nbt != null ? nbt.getLong("StoredItemCount") : 0;
-    }
 }

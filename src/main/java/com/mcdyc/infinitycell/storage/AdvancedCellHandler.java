@@ -38,6 +38,11 @@ public class AdvancedCellHandler extends appeng.core.features.registries.cell.Ba
         if (cell.type == AdvancedCellItem.StorageType.FLUID && !isFluidChan) return null;
         if (cell.type == AdvancedCellItem.StorageType.GAS && !isGasChan) return null;
 
+        // 如果是在客户端调用，直接返回只读的客户端专用容器
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            return new com.mcdyc.infinitycell.storage.client.ClientAdvancedCellInventory<>(is, channel);
+        }
+
         // INF 阶层使用独立的无限盘实现（无容量算术，零溢出风险）
         if (cell.tier == AdvancedCellItem.StorageTier.INF) {
             return new InfiniteCellInventory<>(is, host, channel);
