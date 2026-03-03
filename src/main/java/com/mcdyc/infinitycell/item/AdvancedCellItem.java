@@ -26,7 +26,7 @@ import java.util.UUID;
  * 代表了玩家库存和网络中的所有等级、所有类型（物品/流体/气体）存储磁盘实体。
  * 实现了 AE2 的存储设备以及便携式 GUI 接口。
  */
-public class AdvancedCellItem extends Item implements appeng.api.implementations.items.IStorageCell, appeng.api.implementations.guiobjects.IGuiItem
+public class AdvancedCellItem extends Item implements appeng.api.implementations.items.IStorageCell
 {
     /**
      * 自定义创造模式物品栏标签，图标使用 64k 物品盘
@@ -110,22 +110,6 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         }
     }
 
-    /**
-     * 实现 {@link appeng.api.implementations.guiobjects.IGuiItem} 接口的方法。
-     * 当该物品在玩家手中或者其他位置触发 GUI 打开时，返回对应的客户端渲染与服务端事件处理器。
-     *
-     * @param is  触发 GUI 的目标物品。
-     * @param w   当前所处的世界上下文环境。
-     * @param pos 触发时的坐标（在这里由于是便携式元件并不一定有用，通常为原点）。
-     * @return 用于实现便携式面板特性的视图对象，若目前不支持该类型通道（如流体/气体）则抛弃返回 null。
-     */
-    @Override
-    public appeng.api.implementations.guiobjects.IGuiItemObject getGuiObject(ItemStack is, World w, net.minecraft.util.math.BlockPos pos) {
-        if (this.type == StorageType.ITEM) {
-            return new com.mcdyc.infinitycell.storage.InfinityCellViewer(is, pos.getX());
-        }
-        return null;
-    }
 
     /**
      * 玩家右键交互事件重写。
@@ -226,10 +210,6 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
                     }
                 }
             }
-        } else if (!playerIn.isSneaking() && !worldIn.isRemote && this.type == StorageType.ITEM) {
-            // Simulator Portable Cell behavior
-            Platform.openGUI(playerIn, null, appeng.api.util.AEPartLocation.INTERNAL, appeng.core.sync.GuiBridge.GUI_PORTABLE_CELL);
-            return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.SUCCESS, stack);
         }
 
         return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.PASS, stack);
