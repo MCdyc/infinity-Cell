@@ -99,9 +99,21 @@ public class AdvancedCellData extends WorldSavedData
         return (ChannelData<T>) channels.computeIfAbsent(channel, c -> new ChannelData<T>());
     }
 
+    public boolean isEmpty()
+    {
+        if (channels.isEmpty()) return true;
+        for (ChannelData<?> data : channels.values()) {
+            if (data.totalItemCount > 0) return false;
+        }
+        return true;
+    }
+
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound nbt)
     {
+        if (isEmpty()) {
+            return nbt;  // 返回空nbt，不创建文件内容
+        }
         NBTTagList channelList = new NBTTagList();
 
         for (Map.Entry<IStorageChannel<?>, ChannelData<?>> entry : channels.entrySet()) {

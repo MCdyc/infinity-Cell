@@ -80,7 +80,6 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         if (storageData == null) {
             storageData = new AdvancedCellData(dataKey);
             overworld.getMapStorage().setData(dataKey, storageData);
-            storageData.markDirty();
         }
 
         return storageData;

@@ -81,6 +81,12 @@ public class InfinityCell
         }
     }
 
+    @Mod.EventHandler
+    public void serverStarting(net.minecraftforge.fml.common.event.FMLServerStartingEvent event)
+    {
+        event.registerServerCommand(new com.mcdyc.infinitycell.command.CommandCleanEmptyCells());
+    }
+
     /**
      * 物品注册表列装阶段！在这个期间，Forge 发着大门禁宣告：“所有新模组的人现在可以把自己的物品加到世界的游戏白名单词典中了”
      */
