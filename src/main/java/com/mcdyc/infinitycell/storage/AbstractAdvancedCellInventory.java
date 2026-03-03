@@ -63,6 +63,18 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
 
         String diskUuid = nbt.getString("disk_uuid");
 
+        // 如果是客户端，直接返回内存占位符对象，禁止读写磁盘文件
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            AdvancedCellData proxy = new AdvancedCellData(diskUuid);
+            AdvancedCellData.ChannelData<T> chanData = proxy.getChannelData(channel);
+            if (chanData != null) {
+                chanData.totalBytes = nbt.getLong("UsedBytes");
+                chanData.totalTypes = nbt.getLong("StoredTypes");
+                chanData.totalItemCount = nbt.getLong("StoredItemCount");
+            }
+            return proxy;
+        }
+
         World overworld = DimensionManager.getWorld(0);
         if (overworld == null) {
             return new AdvancedCellData("empty_fallback");
