@@ -91,7 +91,15 @@ public class InfinityCellViewer extends MEMonitorHandler<IAEItemStack> implement
      */
     @Override
     public IAEItemStack injectItems(IAEItemStack input, Actionable mode, IActionSource src) {
-        final long size = input.getStackSize();
+        // 防止玩家将正在打开的终端（或具有相同 UUID 数据的拷贝）塞入它自己的内部导致套娃循环或物品丢失
+        if (input != null && input.getItem() == this.target.getItem()) {
+            ItemStack inputStack = input.createItemStack();
+            if (ItemStack.areItemStackTagsEqual(inputStack, this.target)) {
+                return input; // 直接拒收原样退回
+            }
+        }
+
+        final long size = input == null ? 0 : input.getStackSize();
         final IAEItemStack injected = super.injectItems(input, mode, src);
 
         if (mode == Actionable.MODULATE && (injected == null || injected.getStackSize() != size)) {
