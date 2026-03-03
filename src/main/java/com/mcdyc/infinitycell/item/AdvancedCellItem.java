@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class AdvancedCellItem extends Item implements appeng.api.implementations.items.IStorageCell
+public class AdvancedCellItem extends Item implements appeng.api.implementations.items.IStorageCell, appeng.api.implementations.guiobjects.IGuiItem
 {
     /**
      * 自定义创造模式物品栏标签，图标使用 64k 物品盘
@@ -103,6 +103,14 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
                 nbt.setString("disk_uuid", UUID.randomUUID().toString());
             }
         }
+    }
+
+    @Override
+    public appeng.api.implementations.guiobjects.IGuiItemObject getGuiObject(ItemStack is, World w, net.minecraft.util.math.BlockPos pos) {
+        if (this.type == StorageType.ITEM) {
+            return new com.mcdyc.infinitycell.storage.InfinityCellViewer(is, pos.getX());
+        }
+        return null;
     }
 
     @Override
@@ -193,6 +201,10 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
                     }
                 }
             }
+        } else if (!playerIn.isSneaking() && !worldIn.isRemote && this.type == StorageType.ITEM) {
+            // Simulator Portable Cell behavior
+            Platform.openGUI(playerIn, null, appeng.api.util.AEPartLocation.INTERNAL, appeng.core.sync.GuiBridge.GUI_PORTABLE_CELL);
+            return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.SUCCESS, stack);
         }
 
         return new net.minecraft.util.ActionResult<>(net.minecraft.util.EnumActionResult.PASS, stack);
