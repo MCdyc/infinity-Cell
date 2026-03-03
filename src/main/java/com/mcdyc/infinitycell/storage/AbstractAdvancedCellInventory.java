@@ -56,6 +56,13 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
 
     private AdvancedCellData getOrCreateData()
     {
+        // 客户端物理端检查：防止跨线程访问服务端 MapStorage
+        // SSP 模式下客户端渲染线程并发访问会导致 ConcurrentModificationException
+        // SMP 模式下客户端的 DimensionManager.getWorld(0) 返回 null，无法获取数据
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            return new AdvancedCellData("client_dummy");
+        }
+
         NBTTagCompound nbt = cellItem.getTagCompound();
         if (nbt == null || !nbt.hasKey("disk_uuid")) {
             return new AdvancedCellData("empty_no_uuid");
@@ -137,18 +144,30 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getUsedBytes()
     {
+        // 客户端从 NBT 读取（服务端已同步），服务端从实际数据读取
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            return getUsedBytesFromNBT();
+        }
         return data.getChannelData(channel).totalBytes;
     }
 
     @Override
     public long getStoredItemTypes()
     {
+        // 客户端从 NBT 读取（服务端已同步），服务端从实际数据读取
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            return getStoredTypesFromNBT();
+        }
         return data.getChannelData(channel).totalTypes;
     }
 
     @Override
     public long getStoredItemCount()
     {
+        // 客户端从 NBT 读取（服务端已同步），服务端从实际数据读取
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            return getStoredItemCountFromNBT();
+        }
         return data.getChannelData(channel).totalItemCount;
     }
 
@@ -285,13 +304,55 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     protected void saveChanges()
     {
         // 如果数据为空，清除 dirty 标记而不是设置，防止创建空文件
-        if (data.isEmpty()) {
-            data.clearDirty();
-        } else {
+       
             data.markDirty();
-        }
+        
+
+        // 将统计数据同步到 ItemStack 的 NBT，供客户端 Tooltip 读取
+        syncStatsToNBT();
+
         if (saveProvider != null) {
             saveProvider.saveChanges(this);
         }
+    }
+
+    /**
+     * 将统计数据（usedBytes, storedTypes）同步到 ItemStack 的 NBT。
+     * 客户端通过 NBT 读取这些数据来显示正确的 Tooltip，而不需要访问服务端的 MapStorage。
+     */
+    private void syncStatsToNBT()
+    {
+        NBTTagCompound nbt = cellItem.getTagCompound();
+        if (nbt == null) {
+            nbt = new NBTTagCompound();
+            cellItem.setTagCompound(nbt);
+        }
+
+        AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
+        nbt.setLong("UsedBytes", chanData.totalBytes);
+        nbt.setLong("StoredTypes", chanData.totalTypes);
+        nbt.setLong("StoredItemCount", chanData.totalItemCount);
+    }
+
+    /**
+     * 从 ItemStack 的 NBT 读取统计数据（客户端使用）。
+     * 如果 NBT 中没有数据，返回 0。
+     */
+    private long getUsedBytesFromNBT()
+    {
+        NBTTagCompound nbt = cellItem.getTagCompound();
+        return nbt != null ? nbt.getLong("UsedBytes") : 0;
+    }
+
+    private long getStoredTypesFromNBT()
+    {
+        NBTTagCompound nbt = cellItem.getTagCompound();
+        return nbt != null ? nbt.getLong("StoredTypes") : 0;
+    }
+
+    private long getStoredItemCountFromNBT()
+    {
+        NBTTagCompound nbt = cellItem.getTagCompound();
+        return nbt != null ? nbt.getLong("StoredItemCount") : 0;
     }
 }
