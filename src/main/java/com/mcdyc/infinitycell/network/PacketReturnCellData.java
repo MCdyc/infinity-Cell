@@ -14,7 +14,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
-import com.mcdyc.infinitycell.utils.Log;
+
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
@@ -80,12 +80,11 @@ public class PacketReturnCellData implements IMessage {
                         storedStacks.add(stack);
                     }
                 }
-                Log.info("PacketReturnCellData fromBytes: parsed %d items of channel %s", storedStacks.size(), channelClassName);
             } else {
-                Log.warn("PacketReturnCellData fromBytes: null channel found for name %s", channelClassName);
+                // null channel for this name, skip
             }
         } else {
-            Log.warn("PacketReturnCellData fromBytes: tag is null");
+            // tag is null, skip
         }
     }
 
@@ -206,8 +205,6 @@ public class PacketReturnCellData implements IMessage {
                 cellInv.getUsedBytes(),
                 cellInv.getTotalBytes()
         );
-
-        Log.info("PacketReturnCellData createResponse: server sending %d items back to client", storedStacks.size());
 
         PacketHandler.INSTANCE.sendTo(response, ctx.getServerHandler().player);
         return null;

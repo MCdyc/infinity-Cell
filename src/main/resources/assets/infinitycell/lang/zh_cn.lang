@@ -1,3 +1,4 @@
+itemGroup.infinitycell=无尽元件
 item.item_cell_1k.name=§61k§f-ME物品深度存储元件
 item.item_cell_4k.name=§e4k§f-ME物品深度存储元件
 item.item_cell_16k.name=§a16k§f-ME物品深度存储元件
@@ -39,6 +40,7 @@ infinitycell.tooltip.uuid=§8UUID: %s
 infinitycell.tooltip.uuid_unassigned=§8UUID: §7[未分配]
 infinitycell.tooltip.used_total_bytes=§a%s §7 / §c%s §7字节已使用
 infinitycell.tooltip.capacity_infinite=§a%s§7 / §f#7594F0-8C35E3-4C4C4DINFINITE §7类型
+infinitycell.tooltip.types=§7类型: §a%s §7/ §e%s
 
 # JEI
 infinitycell.jei.cellview=元件内容

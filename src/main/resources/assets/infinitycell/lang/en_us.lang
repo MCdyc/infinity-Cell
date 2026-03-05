@@ -40,6 +40,7 @@ infinitycell.tooltip.uuid=§8UUID: %s
 infinitycell.tooltip.uuid_unassigned=§8UUID: §7[Unassigned]
 infinitycell.tooltip.used_total_bytes=§a%s §7 / §c%s §7Bytes Used
 infinitycell.tooltip.capacity_infinite=§a%s§7 / §f#7594F0-8C35E3-4C4C4DINFINITE §7Type
+infinitycell.tooltip.types=§7Types: §a%s §7/ §e%s
 
 # JEI
 infinitycell.jei.cellview=Cell Contents

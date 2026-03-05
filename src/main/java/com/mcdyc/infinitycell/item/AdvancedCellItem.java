@@ -253,13 +253,16 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         if (cellInv == null) return;
 
         long usedBytes = cellInv.getUsedBytes();
+        long storedTypes = cellInv.getStoredItemTypes();
+        long totalTypes = cellInv.getTotalItemTypes();
 
         if (this.tier == StorageTier.INF) {
-            // 无限盘：种类数 + 容量标签行，格式/颜色全在 lang
-            tooltip.add(I18n.format("infinitycell.tooltip.capacity_infinite", usedBytes));
+            // 无限盘：种类数 + 容量标签行
+            tooltip.add(I18n.format("infinitycell.tooltip.capacity_infinite", storedTypes));
         } else {
-            // 有限盘：已用/总容量行，格式/颜色全在 lang
+            // 有限盘：已用/总容量字节 + 种类数
             tooltip.add(I18n.format("infinitycell.tooltip.used_total_bytes", usedBytes, cellInv.getTotalBytes()));
+            tooltip.add(I18n.format("infinitycell.tooltip.types", storedTypes, totalTypes));
         }
     }
 
