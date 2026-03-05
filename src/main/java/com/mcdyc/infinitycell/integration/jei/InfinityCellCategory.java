@@ -392,7 +392,7 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
                     // 深度盘: 1 byte = 1 桶 (流体/气体), 1 byte = 8 物品 (物品)
                     // 无限盘: 在上面已被 Inf 处理
                     long totalBytes = this.cachedCellData.getTotalBytes();
-                    capacity = totalBytes;
+                    capacity = totalBytes * getCapacityMultiplierForCurrentCell();
                 }
             } else {
                 capacity = (this.cellInfo.cellInv.getRemainingItemCount() + storedItemCount) / transferFactor;
@@ -424,30 +424,35 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
                 this.slotSprite.draw(minecraft, info.getPosX(), info.getPosY());
             }
 
-            // Manually render items and AE2 stack size text (JEI won't render items due to NOOP_ITEM_RENDERER)
+            // Manually render items, fluids, gas and AE2 stack size text (JEI won't render items due to NOOP_ITEM_RENDERER)
             net.minecraft.client.renderer.RenderItem itemRender = minecraft.getRenderItem();
             for (ExtendedStackInfo info : this.currentUiStacks) {
                 IAEStack<?> stack = info.getStack();
                 int sx = info.getPosX() + 1;
                 int sy = info.getPosY() + 1;
 
-                if (!(stack instanceof appeng.api.storage.data.IAEFluidStack)) {
-                    ItemStack itemStack = stack.asItemStackRepresentation();
+                // 所有类型都可以通过 asItemStackRepresentation() 获取可渲染的 ItemStack
+                // 物品返回自身，流体返回桶图标，气体返回对应图标
+                ItemStack displayStack = stack.asItemStackRepresentation();
+                if (!displayStack.isEmpty()) {
                     GlStateManager.pushMatrix();
                     net.minecraft.client.renderer.RenderHelper.enableGUIStandardItemLighting();
-                    itemRender.renderItemAndEffectIntoGUI(itemStack, sx, sy);
-                    itemRender.renderItemOverlayIntoGUI(minecraft.fontRenderer, itemStack, sx, sy, "");
+                    itemRender.renderItemAndEffectIntoGUI(displayStack, sx, sy);
+                    itemRender.renderItemOverlayIntoGUI(minecraft.fontRenderer, displayStack, sx, sy, "");
                     net.minecraft.client.renderer.RenderHelper.disableStandardItemLighting();
                     GlStateManager.popMatrix();
+                }
 
-                    appeng.util.item.AEItemStack aeStack = appeng.util.item.AEItemStack.fromItemStack(itemStack);
+                // 渲染 AE2 格式的数量文字
+                if (stack instanceof appeng.api.storage.data.IAEFluidStack) {
+                    appeng.api.storage.data.IAEFluidStack fluidStack = (appeng.api.storage.data.IAEFluidStack) stack;
+                    fluidStackSizeRenderer.renderStackSize(minecraft.fontRenderer, fluidStack, sx, sy);
+                } else {
+                    appeng.util.item.AEItemStack aeStack = appeng.util.item.AEItemStack.fromItemStack(displayStack);
                     if (aeStack != null) {
                         aeStack.setStackSize(stack.getStackSize());
                         stackSizeRenderer.renderStackSize(minecraft.fontRenderer, aeStack, sx, sy);
                     }
-                } else {
-                    appeng.api.storage.data.IAEFluidStack fluidStack = (appeng.api.storage.data.IAEFluidStack) stack;
-                    fluidStackSizeRenderer.renderStackSize(minecraft.fontRenderer, fluidStack, sx, sy);
                 }
             }
         }
@@ -481,6 +486,23 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
             }
         }
         return 1;
+    }
+
+    /**
+     * 容量乘数：totalBytes * multiplier = 显示容量
+     * - 物品盘: 1 byte = 1 物品 (multiplier = 1)
+     * - 流体深度盘: 1 byte = 1 桶 (multiplier = 1)
+     * - 气体深度盘: 1 byte = 4 桶 (multiplier = 4)
+     * - 无限盘: Inf (不经过此计算)
+     */
+    private int getCapacityMultiplierForCurrentCell() {
+        if (this.currentCellStack != null && this.currentCellStack.getItem() instanceof AdvancedCellItem) {
+            AdvancedCellItem cell = (AdvancedCellItem) this.currentCellStack.getItem();
+            if (cell.type == AdvancedCellItem.StorageType.GAS && cell.tier != AdvancedCellItem.StorageTier.INF) {
+                return 4; // 气体深度盘: 1 byte = 4 桶
+            }
+        }
+        return 1; // 默认: 1 byte = 1 单位
     }
 
     /**

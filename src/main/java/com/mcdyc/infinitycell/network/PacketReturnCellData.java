@@ -124,7 +124,10 @@ public class PacketReturnCellData implements IMessage {
                 return ch;
             } else if (stack.isFluid() && ch instanceof appeng.api.storage.channels.IFluidStorageChannel) {
                 return ch;
-            } else if (appeng.util.Platform.isModLoaded("mekeng") && stack.getClass().getName().contains("AEGasStack") && ch.getClass().getName().contains("IGasStorageChannel")) {
+            } else if (!stack.isItem() && !stack.isFluid()
+                    && !(ch instanceof appeng.api.storage.channels.IItemStorageChannel)
+                    && !(ch instanceof appeng.api.storage.channels.IFluidStorageChannel)) {
+                // 气体或其他自定义类型：通过排除法匹配
                 return ch;
             }
         }
