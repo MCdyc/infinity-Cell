@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - NovaEng
     tags:
       - '*'
   pull_request:
