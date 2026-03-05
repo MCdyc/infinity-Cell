@@ -5,6 +5,7 @@ package com.mcdyc.infinitycell;
 
 import appeng.api.AEApi;
 import com.mcdyc.infinitycell.item.AdvancedCellItem;
+import com.mcdyc.infinitycell.network.PacketHandler;
 import com.mcdyc.infinitycell.storage.AdvancedCellHandler;
 import net.minecraft.item.Item;
 import net.minecraftforge.event.RegistryEvent;
@@ -51,6 +52,10 @@ public class InfinityCell
     public void preInit(FMLPreInitializationEvent event)
     {
         LOGGER.info("无限 AE 模组: {} !", Tags.MOD_NAME);
+
+        // 注册网络包通道
+        PacketHandler.registerMessages(Tags.MOD_ID);
+        LOGGER.info("网络包通道已注册！");
     }
 
     /**
