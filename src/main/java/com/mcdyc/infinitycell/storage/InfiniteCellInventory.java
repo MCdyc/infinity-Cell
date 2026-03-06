@@ -149,6 +149,12 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
         return Integer.MAX_VALUE;
     }
 
+    @Override
+    protected long getBytesForStoredAmount(long amount)
+    {
+        return Math.max(0, amount);
+    }
+
     /**
      * 预测我们是否有余量接受陌生的拜访者数据。
      * @return 我们是无限元件，照单全收：永远 true。

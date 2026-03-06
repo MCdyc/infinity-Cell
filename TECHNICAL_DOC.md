@@ -54,13 +54,13 @@ public class InfinityCell {
 
 **关键流程**：
 
-| 阶段 | 方法 | 功能 |
-|------|------|------|
-| Pre-Init | `preInit()` | 日志输出 |
-| Init | `init()` | **反射注入** AdvancedCellHandler 到 AE2 CellRegistry 首位 |
-| Register | `registerItems()` | 注册所有磁盘、外壳、无限组件 |
-| Register | `registerModels()` | 绑定物品模型 |
-| Register | `registerRecipes()` | 注册无序合成配方（外壳 + 原版组件 = 高级盘） |
+| 阶段     | 方法                | 功能                                                      |
+| -------- | ------------------- | --------------------------------------------------------- |
+| Pre-Init | `preInit()`         | 日志输出                                                  |
+| Init     | `init()`            | **反射注入** AdvancedCellHandler 到 AE2 CellRegistry 首位 |
+| Register | `registerItems()`   | 注册所有磁盘、外壳、无限组件                              |
+| Register | `registerModels()`  | 绑定物品模型                                              |
+| Register | `registerRecipes()` | 注册无序合成配方（外壳 + 原版组件 = 高级盘）              |
 
 **反射注入技巧**：
 ```java
@@ -117,11 +117,11 @@ if (playerIn.isSneaking() && cellInv.getUsedBytes() == 0) {
 ```
 
 #### 组件映射表
-| 阶梯 | 物品组件 | 流体组件 | 气体组件 |
-|------|----------|----------|----------|
-| 1K-64K | AE2 material (meta 35-38) | AE2 material (meta 54-57) | mekeng gas_core_Xk |
-| 256K-16384K | NAE2 material (meta 1-4) | NAE2 material (meta 5-8) | NAE2 material (meta 9-12) |
-| INF | infinite_component_item | infinite_component_fluid | infinite_component_gas |
+| 阶梯        | 物品组件                  | 流体组件                  | 气体组件                  |
+| ----------- | ------------------------- | ------------------------- | ------------------------- |
+| 1K-64K      | AE2 material (meta 35-38) | AE2 material (meta 54-57) | mekeng gas_core_Xk        |
+| 256K-16384K | NAE2 material (meta 1-4)  | NAE2 material (meta 5-8)  | NAE2 material (meta 9-12) |
+| INF         | infinite_component_item   | infinite_component_fluid  | infinite_component_gas    |
 
 ---
 
@@ -227,12 +227,12 @@ public T injectItems(T input, Actionable type, IActionSource src) {
 ```
 
 **状态灯逻辑**：
-| 返回值 | 颜色 | 条件 |
-|--------|------|------|
-| 4 | 蓝色 | 空盘 (totalBytes == 0) |
-| 1 | 绿色 | 正常 (< 75%) |
-| 2 | 橙色 | 临界 (≥ 75%) |
-| 3 | 红色 | 已满 (== 100%) |
+| 返回值 | 颜色 | 条件                   |
+| ------ | ---- | ---------------------- |
+| 4      | 蓝色 | 空盘 (totalBytes == 0) |
+| 1      | 绿色 | 正常 (< 75%)           |
+| 2      | 橙色 | 临界 (≥ 75%)           |
+| 3      | 红色 | 已满 (== 100%)         |
 
 ---
 
@@ -315,12 +315,12 @@ private long wrapGetRemainingItemCount(ICellInventory<?> instance) {
 
 ## 四、依赖关系
 
-| 模组 | 依赖类型 | 用途 |
-|------|----------|------|
-| Applied Energistics 2 | **必需** | 核心 API、存储系统 |
-| MixinBooter | **必需** | Late Mixin 加载 |
-| NAE2 | 可选 | 256K+ 组件、JEI 兼容 |
-| mekeng | 可选 | 气体存储支持 |
+| 模组                  | 依赖类型 | 用途                 |
+| --------------------- | -------- | -------------------- |
+| Applied Energistics 2 | **必需** | 核心 API、存储系统   |
+| MixinBooter           | **必需** | Late Mixin 加载      |
+| NAE2                  | 可选     | 256K+ 组件、JEI 兼容 |
+| mekeng                | 可选     | 气体存储支持         |
 
 ---
 
@@ -333,11 +333,11 @@ private long wrapGetRemainingItemCount(ICellInventory<?> instance) {
 ```
 
 ### 组件来源
-| 阶梯 | 来源模组 | 物品ID |
-|------|----------|--------|
-| 1K-64K | AE2 | appliedenergistics2:material |
-| 256K-16384K | NAE2 | nae2:material |
-| INF | 本模组 | infinitycell:infinite_component_* |
+| 阶梯        | 来源模组 | 物品ID                            |
+| ----------- | -------- | --------------------------------- |
+| 1K-64K      | AE2      | appliedenergistics2:material      |
+| 256K-16384K | NAE2     | nae2:material                     |
+| INF         | 本模组   | infinitycell:infinite_component_* |
 
 ---
 
@@ -370,21 +370,21 @@ private long wrapGetRemainingItemCount(ICellInventory<?> instance) {
 ## 八、文件清单
 
 ### Java 源文件
-| 文件 | 行数 | 职责 |
-|------|------|------|
-| InfinityCell.java | ~163 | 模组入口 |
-| AdvancedCellItem.java | ~424 | 存储元件物品 |
-| AdvancedCellHousingItem.java | ~14 | 外壳物品 |
-| InfiniteComponentItem.java | ~24 | 无限组件物品 |
-| DebugInjectorItem.java | ~114 | 调试工具 |
-| AdvancedCellHandler.java | ~63 | Handler 拦截 |
-| AdvancedCellData.java | ~170 | 数据持久化 |
-| AbstractAdvancedCellInventory.java | ~293 | 抽象基类 |
-| AdvancedCellInventory.java | ~176 | 有限盘实现 |
-| InfiniteCellInventory.java | ~130 | 无限盘实现 |
-| MixinLoader.java | ~13 | Mixin 加载 |
-| MixinJEICellCategory.java | ~27 | JEI 排序修复 |
-| MixinJEICellCategoryDisplay.java | ~128 | JEI 显示修复 |
+| 文件                               | 行数 | 职责         |
+| ---------------------------------- | ---- | ------------ |
+| InfinityCell.java                  | ~163 | 模组入口     |
+| AdvancedCellItem.java              | ~424 | 存储元件物品 |
+| AdvancedCellHousingItem.java       | ~14  | 外壳物品     |
+| InfiniteComponentItem.java         | ~24  | 无限组件物品 |
+| DebugInjectorItem.java             | ~114 | 调试工具     |
+| AdvancedCellHandler.java           | ~63  | Handler 拦截 |
+| AdvancedCellData.java              | ~170 | 数据持久化   |
+| AbstractAdvancedCellInventory.java | ~293 | 抽象基类     |
+| AdvancedCellInventory.java         | ~176 | 有限盘实现   |
+| InfiniteCellInventory.java         | ~130 | 无限盘实现   |
+| MixinLoader.java                   | ~13  | Mixin 加载   |
+| MixinJEICellCategory.java          | ~27  | JEI 排序修复 |
+| MixinJEICellCategoryDisplay.java   | ~128 | JEI 显示修复 |
 
 ### 资源文件
 - `mcmod.info` - 模组元数据

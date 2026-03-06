@@ -77,8 +77,10 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
             AdvancedCellData.ChannelData<T> chanData = proxy.getChannelData(channel);
             if (chanData != null) {
                 chanData.totalBytes = nbt.getLong("UsedBytes");
+                chanData.totalBytesOverflow = nbt.getLong("UsedBytesOverflow");
                 chanData.totalTypes = nbt.getLong("StoredTypes");
                 chanData.totalItemCount = nbt.getLong("StoredItemCount");
+                chanData.totalItemCountOverflow = nbt.getLong("StoredItemCountOverflow");
             }
             return proxy;
         }
@@ -132,7 +134,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
 
         if (mode == Actionable.MODULATE) {
             long newSize = currentCount - extractable;
-            long bytesDelta = newSize - currentCount; // 负数，归还字节
+            long bytesDelta = getBytesForStoredAmount(newSize) - getBytesForStoredAmount(currentCount);
             boolean isRemoved = newSize <= 0;
             chanData.modify(request, -extractable, bytesDelta, isRemoved ? -1 : 0);
             saveChanges();
@@ -201,6 +203,19 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     public int getBytesPerType()
     {
         return 0; // 不收索引占用税
+    }
+
+    /**
+     * 计算某一物种在当前通道下占用的字节数。
+     * 对无限盘，这个值仅用于提取时与注入保持一致地回退统计数据。
+     */
+    protected long getBytesForStoredAmount(long amount)
+    {
+        if (amount <= 0) {
+            return 0;
+        }
+        long unitsPerByte = Math.max(1, channel.getUnitsPerByte() / 8L);
+        return (amount + unitsPerByte - 1) / unitsPerByte;
     }
 
     // -------------------------------------------------------------------------
@@ -334,10 +349,11 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
      */
     protected void saveChanges()
     {
-        // 如果数据为空，清除 dirty 标记而不是设置，防止创建空文件
-       
+        if (data.isEmpty()) {
+            data.clearDirty();
+        } else {
             data.markDirty();
-        
+        }
 
         // 将统计数据同步到 ItemStack 的 NBT，供客户端 Tooltip 读取
         syncStatsToNBT();
@@ -361,8 +377,10 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
 
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
         nbt.setLong("UsedBytes", chanData.totalBytes);
+        nbt.setLong("UsedBytesOverflow", chanData.totalBytesOverflow);
         nbt.setLong("StoredTypes", chanData.totalTypes);
         nbt.setLong("StoredItemCount", chanData.totalItemCount);
+        nbt.setLong("StoredItemCountOverflow", chanData.totalItemCountOverflow);
     }
 
 }

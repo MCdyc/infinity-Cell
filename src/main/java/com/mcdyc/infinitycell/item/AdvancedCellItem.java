@@ -13,6 +13,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
+import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -179,22 +180,25 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
                                 if (stack.hasTagCompound() && stack.getTagCompound().hasKey("disk_uuid")) {
                                     String uuid = stack.getTagCompound().getString("disk_uuid");
                                     String dataKey = "infinite/" + uuid;
+                                    World overworld = DimensionManager.getWorld(0);
 
-                                    // 清除内存中的数据对象的 dirty 标记，防止世界保存时重新创建文件
-                                    com.mcdyc.infinitycell.storage.AdvancedCellData memoryData =
-                                            (com.mcdyc.infinitycell.storage.AdvancedCellData) worldIn.getMapStorage()
-                                                    .getOrLoadData(com.mcdyc.infinitycell.storage.AdvancedCellData.class, dataKey);
-                                    if (memoryData != null) {
-                                        memoryData.clearDirty();
-                                    }
+                                    if (overworld != null) {
+                                        // 清除真实后端对象的 dirty 标记，防止世界保存时重新创建文件
+                                        com.mcdyc.infinitycell.storage.AdvancedCellData memoryData =
+                                                (com.mcdyc.infinitycell.storage.AdvancedCellData) overworld.getMapStorage()
+                                                        .getOrLoadData(com.mcdyc.infinitycell.storage.AdvancedCellData.class, dataKey);
+                                        if (memoryData != null) {
+                                            memoryData.clearDirty();
+                                        }
 
-                                    // 删除物理文件
-                                    java.io.File infiniteDir = new java.io.File(worldIn.getSaveHandler().getWorldDirectory(), "data/infinite");
-                                    java.io.File dataFile = new java.io.File(infiniteDir, uuid + ".dat");
-                                    if (dataFile.exists()) {
-                                        boolean deleted = dataFile.delete();
-                                        if (deleted) {
-                                            com.mcdyc.infinitycell.InfinityCell.LOGGER.info("Deleted UUID data file for separated cell: {}", uuid);
+                                        // 删除主世界 data/infinite 下的物理文件
+                                        java.io.File infiniteDir = new java.io.File(overworld.getSaveHandler().getWorldDirectory(), "data/infinite");
+                                        java.io.File dataFile = new java.io.File(infiniteDir, uuid + ".dat");
+                                        if (dataFile.exists()) {
+                                            boolean deleted = dataFile.delete();
+                                            if (deleted) {
+                                                com.mcdyc.infinitycell.InfinityCell.LOGGER.info("Deleted UUID data file for separated cell: {}", uuid);
+                                            }
                                         }
                                     }
                                 }
@@ -410,12 +414,12 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
 
     @Override
     public int getBytesPerType(ItemStack cellItem) {
-        return 8;
+        return 0;
     }
 
     @Override
     public int getTotalTypes(ItemStack cellItem) {
-        return 63;
+        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -435,7 +439,11 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
 
     @Override
     public double getIdleDrain() {
-        return 0.0;
+        if (this.tier == StorageTier.INF) {
+            return 0.0D;
+        }
+        double log4x = Math.log(this.tier.kb) / Math.log(4.0);
+        return 0.5D * log4x + 0.5D;
     }
 
     // --- ICellWorkbenchItem methods ---
