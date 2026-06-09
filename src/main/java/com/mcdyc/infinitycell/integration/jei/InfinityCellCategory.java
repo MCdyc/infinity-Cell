@@ -122,8 +122,11 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
         // 首先尝试从缓存获取数据
         this.cachedCellData = CellDataCache.getInstance().getCachedData(stack);
 
+        boolean hasDiskUuid = hasDiskUuid(stack);
         // 无论是否有缓存，都请求最新数据（确保下次刷新时数据是最新的）
-        CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
+        if (hasDiskUuid) {
+            CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
+        }
 
         if (this.cachedCellData != null) {
             // 使用缓存数据先渲染，等新数据到达后会自动刷新
@@ -144,15 +147,24 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
                     setupRecipeFromCellInfo(recipeLayout, recipeWrapper, testList);
                 } else {
                     // 本地也没有数据，请求网络数据
-                    this.isLoading = true;
-                    CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
+                    this.isLoading = hasDiskUuid;
+                    if (hasDiskUuid) {
+                        CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
+                    }
                 }
             } else {
                 // 无法获取 CellInfo，请求网络数据
-                this.isLoading = true;
-                CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
+                this.isLoading = hasDiskUuid;
+                if (hasDiskUuid) {
+                    CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
+                }
             }
         }
+    }
+
+    private static boolean hasDiskUuid(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && stack.hasTagCompound()
+                && stack.getTagCompound().hasKey("disk_uuid");
     }
 
     private void updateJeiSlots(List<ExtendedStackInfo> uiStacks) {
@@ -183,7 +195,7 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
         // 按数量排序
         storedStacks.sort((a, b) -> Long.compare(b.getStackSize(), a.getStackSize()));
 
-        int totalTypes = Math.min((int) cachedData.getStoredItemTypes(), MAX_ITEMS_TO_REQUEST);
+        int totalTypes = (int) Math.min(cachedData.getStoredItemTypes(), (long) MAX_ITEMS_TO_REQUEST);
         int gridWidth = Math.min(9, totalTypes);
         int gridStartY = TOTAL_HEIGHT - GRID_HEIGHT;
         int gridStartX = WIDTH / 2 - gridWidth * 18 / 2;
@@ -223,7 +235,7 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
     {
         storedStacks.sort((a, b) -> Long.compare(b.getStackSize(), a.getStackSize()));
 
-        int totalTypes = (int) this.cellInfo.cellInv.getStoredItemTypes();
+        int totalTypes = (int) Math.min(this.cellInfo.cellInv.getStoredItemTypes(), (long) MAX_ITEMS_TO_REQUEST);
         int gridWidth = Math.min(9, totalTypes);
         int gridStartY = TOTAL_HEIGHT - GRID_HEIGHT;
         int gridStartX = WIDTH / 2 - gridWidth * 18 / 2;

@@ -178,7 +178,7 @@ public class AdvancedCellData extends WorldSavedData
     {
         if (channels.isEmpty()) return true;
         for (ChannelData<?> data : channels.values()) {
-            if (data.totalItemCount > 0) return false;
+            if (data.totalItemCount > 0 || data.totalItemCountOverflow > 0) return false;
         }
         return true;
     }

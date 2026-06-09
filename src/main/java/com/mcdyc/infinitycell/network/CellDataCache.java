@@ -108,7 +108,7 @@ public class CellDataCache {
      * 发送数据请求到服务器
      */
     public void requestData(ItemStack stack, int maxItems) {
-        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+        if (hasDiskUuid(stack) && net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             PacketHandler.INSTANCE.sendToServer(new PacketRequestCellData(stack, maxItems));
         }
     }
@@ -134,10 +134,15 @@ public class CellDataCache {
     }
 
     private String getUuidFromStack(ItemStack stack) {
-        if (stack.hasTagCompound() && stack.getTagCompound().hasKey("disk_uuid")) {
+        if (hasDiskUuid(stack)) {
             return stack.getTagCompound().getString("disk_uuid");
         }
         return null;
+    }
+
+    private boolean hasDiskUuid(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && stack.hasTagCompound()
+                && stack.getTagCompound().hasKey("disk_uuid");
     }
 
     private int getStackHash(ItemStack stack) {

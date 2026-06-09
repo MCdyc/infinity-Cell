@@ -218,6 +218,6 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
      */
     private long getUnPerByte()
     {
-        return channel.getUnitsPerByte() / 8;
+        return Math.max(1L, channel.getUnitsPerByte() / 8L);
     }
 }

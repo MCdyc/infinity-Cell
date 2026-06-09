@@ -339,7 +339,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public void persist()
     {
-        saveChanges();
+        persistLocalChanges();
     }
 
     /**
@@ -349,6 +349,20 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
      */
     protected void saveChanges()
     {
+        persistLocalChanges();
+
+        if (saveProvider != null) {
+            saveProvider.saveChanges(this);
+        }
+    }
+
+    /**
+     * Applies this cell's own persistent state without notifying the AE2 host.
+     * AE2 hosts may call {@link #persist()} from their save callback; calling
+     * back into the host from there causes TileChest save recursion.
+     */
+    private void persistLocalChanges()
+    {
         if (data.isEmpty()) {
             data.clearDirty();
         } else {
@@ -357,10 +371,6 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
 
         // 将统计数据同步到 ItemStack 的 NBT，供客户端 Tooltip 读取
         syncStatsToNBT();
-
-        if (saveProvider != null) {
-            saveProvider.saveChanges(this);
-        }
     }
 
     /**

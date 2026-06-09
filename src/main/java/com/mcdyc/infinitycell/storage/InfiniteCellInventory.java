@@ -103,8 +103,8 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public long getFreeBytes()
     {
-        // usedBytes 远小于 DISPLAY_BYTES，此减法绝不溢出
-        return DISPLAY_BYTES - getUsedBytes();
+        // Infinite cells should never report negative free space to AE2 callers.
+        return DISPLAY_BYTES;
     }
 
     /**

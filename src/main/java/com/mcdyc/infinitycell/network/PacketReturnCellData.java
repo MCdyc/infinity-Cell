@@ -8,10 +8,11 @@ import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import io.netty.buffer.ByteBuf;
-import net.minecraft.client.Minecraft;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 
@@ -26,6 +27,8 @@ import java.util.List;
  * 服务器返回元件数据的包
  */
 public class PacketReturnCellData implements IMessage {
+
+    private static final int MAX_RETURNED_STACKS = 63;
 
     private ItemStack cellStack;
     private List<IAEStack<?>> storedStacks;
@@ -162,6 +165,12 @@ public class PacketReturnCellData implements IMessage {
      * 在服务端创建响应包并发送
      */
     public static IMessage createResponse(ItemStack cellStack, int maxItems, MessageContext ctx) {
+        EntityPlayerMP player = ctx.getServerHandler().player;
+        cellStack = findMatchingPlayerStack(player, cellStack);
+        if (cellStack.isEmpty()) {
+            return null;
+        }
+
         if (!(cellStack.getItem() instanceof IStorageCell<?>)) {
             return null;
         }
@@ -196,8 +205,9 @@ public class PacketReturnCellData implements IMessage {
         storedStacks.sort((a, b) -> Long.compare(b.getStackSize(), a.getStackSize()));
 
         // 限制数量
-        if (maxItems > 0 && storedStacks.size() > maxItems) {
-            storedStacks = new ArrayList<>(storedStacks.subList(0, maxItems));
+        int cappedMaxItems = Math.max(0, Math.min(maxItems, MAX_RETURNED_STACKS));
+        if (cappedMaxItems > 0 && storedStacks.size() > cappedMaxItems) {
+            storedStacks = new ArrayList<>(storedStacks.subList(0, cappedMaxItems));
         }
 
         PacketReturnCellData response = new PacketReturnCellData(
@@ -213,10 +223,49 @@ public class PacketReturnCellData implements IMessage {
         return null;
     }
 
+    private static ItemStack findMatchingPlayerStack(EntityPlayerMP player, ItemStack requestedStack) {
+        if (player == null || requestedStack == null || requestedStack.isEmpty()
+                || !(requestedStack.getItem() instanceof IStorageCell<?>)) {
+            return ItemStack.EMPTY;
+        }
+
+        String requestedUuid = getDiskUuid(requestedStack);
+        for (ItemStack stack : player.inventory.mainInventory) {
+            if (matchesRequestedCell(stack, requestedStack, requestedUuid)) {
+                return stack;
+            }
+        }
+        for (ItemStack stack : player.inventory.offHandInventory) {
+            if (matchesRequestedCell(stack, requestedStack, requestedUuid)) {
+                return stack;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static boolean matchesRequestedCell(ItemStack stack, ItemStack requestedStack, String requestedUuid) {
+        if (stack == null || stack.isEmpty() || stack.getItem() != requestedStack.getItem()) {
+            return false;
+        }
+
+        if (requestedUuid != null) {
+            return requestedUuid.equals(getDiskUuid(stack));
+        }
+
+        return getDiskUuid(stack) == null;
+    }
+
+    private static String getDiskUuid(ItemStack stack) {
+        if (stack.hasTagCompound() && stack.getTagCompound().hasKey("disk_uuid")) {
+            return stack.getTagCompound().getString("disk_uuid");
+        }
+        return null;
+    }
+
     public static class Handler implements IMessageHandler<PacketReturnCellData, IMessage> {
         @Override
         public IMessage onMessage(PacketReturnCellData message, MessageContext ctx) {
-            Minecraft.getMinecraft().addScheduledTask(() -> {
+            FMLCommonHandler.instance().getWorldThread(ctx.netHandler).addScheduledTask(() -> {
                 // 将数据存入客户端缓存
                 CellDataCache.getInstance().updateCache(message);
             });

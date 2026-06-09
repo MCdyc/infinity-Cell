@@ -35,6 +35,7 @@ import java.util.List;
 @Mod.EventBusSubscriber(modid = Tags.MOD_ID)
 public class InfinityCell
 {
+    private static final boolean REGISTER_DEBUG_INJECTOR = false;
 
     // 建立一个只属于我们自己的控制台日志打印播报员，这样报错的时候能清晰看到锅是出在这个名称前缀上
     public static final Logger LOGGER = LogManager.getLogger(Tags.MOD_NAME);
@@ -124,7 +125,9 @@ public class InfinityCell
         for (com.mcdyc.infinitycell.item.InfiniteComponentItem component : AdvancedCellItem.INFINITE_COMPONENTS) {
             event.getRegistry().register(component);
         }
-        event.getRegistry().register(new com.mcdyc.infinitycell.item.DebugInjectorItem());
+        if (REGISTER_DEBUG_INJECTOR) {
+            event.getRegistry().register(new com.mcdyc.infinitycell.item.DebugInjectorItem());
+        }
     }
 
     /**
@@ -156,12 +159,14 @@ public class InfinityCell
                     new net.minecraft.client.renderer.block.model.ModelResourceLocation(component.getRegistryName(), "inventory")
             );
         }
-        Item debugItem = net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.getValue(new net.minecraft.util.ResourceLocation("infinitycell", "debug_injector"));
-        if(debugItem != null) {
-            net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
-                debugItem, 0,
-                new net.minecraft.client.renderer.block.model.ModelResourceLocation("minecraft:stick", "inventory")
-            );
+        if (REGISTER_DEBUG_INJECTOR) {
+            Item debugItem = net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.getValue(new net.minecraft.util.ResourceLocation("infinitycell", "debug_injector"));
+            if(debugItem != null) {
+                net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
+                    debugItem, 0,
+                    new net.minecraft.client.renderer.block.model.ModelResourceLocation("minecraft:stick", "inventory")
+                );
+            }
         }
     }
 
