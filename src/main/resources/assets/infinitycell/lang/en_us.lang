@@ -51,6 +51,7 @@ infinitycell.jei.cellview.items=items
 infinitycell.jei.cellview.buckets=buckets
 infinitycell.jei.cellview.units=units
 infinitycell.jei.cellview.hover.1=Types: %s
+infinitycell.jei.cellview.hover.1.capped=Types: %s (showing first %s)
 infinitycell.jei.cellview.hover.2=Bytes per type: 0
 infinitycell.jei.cellview.hover.3=%s bytes per type * %s types = %s bytes
 infinitycell.jei.cellview.hover.stored=%s %s stored

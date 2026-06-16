@@ -6,9 +6,13 @@ import appeng.api.storage.data.IAEStack;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.world.World;
 import net.minecraft.world.storage.WorldSavedData;
+import net.minecraftforge.common.DimensionManager;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -124,6 +128,32 @@ public class AdvancedCellData extends WorldSavedData
         }
 
         /**
+         * 仅取迭代到的前 N 个品种（哈希迭代顺序，非排序）。
+         * 用于网络预览采样：海量品种时早停，避免全量物化 + O(n log n) 排序卡服务端主线程。
+         *
+         * @param max 最多采集的品种数（通常为 63）。
+         * @return 已设好 stackSize 的物品栈列表，长度 ≤ max。
+         */
+        public List<T> collectFirstN(int max) {
+            List<T> out = new ArrayList<>(Math.min(Math.max(max, 0), 64));
+            if (max <= 0) return out;
+            for (Object2LongMap.Entry<T> entry : counts.object2LongEntrySet()) {
+                T copy = entry.getKey().copy();
+                copy.setStackSize(entry.getLongValue());
+                out.add(copy);
+                if (out.size() >= max) break;   // 拿够立刻收手
+            }
+            return out;
+        }
+
+        /**
+         * @return 当前通道内真实的品种数（直接取 map 大小，永不漂移）。
+         */
+        public int typeCount() {
+            return counts.size();
+        }
+
+        /**
          * 增量计算当前频道的所有 NBT 列表。
          * 采用只对本tick被打上脏标记（发生过变动）的那小撮物品做 NBT 序列化，其余的从缓存列表直出的机制，
          * 用于保障 10 万级的多品种极端存储元件落在磁盘时的瞬时性能（避免停顿）。
@@ -166,6 +196,24 @@ public class AdvancedCellData extends WorldSavedData
     public AdvancedCellData(String name)
     {
         super(name);
+    }
+
+    /**
+     * 按 UUID 从主世界 MapStorage 只读加载后端数据（服务端专用）。
+     * 复用 {@link com.mcdyc.infinitycell.command.CommandCleanEmptyCells} 的读取约定。
+     *
+     * <p>注意：刻意使用 {@code getOrLoadData} 而非 {@code getOrCreateData}，
+     * 绝不调用 {@code setData}——否则每次预览都会为空盘生成幽灵 .dat 文件。
+     *
+     * @param diskUuid 元件的 disk_uuid。
+     * @return 对应后端数据；若该 UUID 尚无文件则返回 {@code null}（调用方按空盘处理）。
+     */
+    public static AdvancedCellData loadByUuid(String diskUuid)
+    {
+        World overworld = DimensionManager.getWorld(0);
+        if (overworld == null) return null;
+        return (AdvancedCellData) overworld.getMapStorage()
+                .getOrLoadData(AdvancedCellData.class, "infinite/" + diskUuid);
     }
 
     @SuppressWarnings("unchecked")

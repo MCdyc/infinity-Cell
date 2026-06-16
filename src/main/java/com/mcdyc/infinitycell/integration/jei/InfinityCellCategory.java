@@ -75,6 +75,8 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
     private IDrawable icon = null;
     private CellInfo cellInfo;
     private boolean isLoading = false;
+    private long loadingStartTime = 0L;
+    private static final long LOADING_TIMEOUT_MS = 10_000L; // 10s < 缓存 30s TTL，超时停转
     private ItemStack currentCellStack = null;
     // 缓存的数据
     private CellDataCache.CachedCellData cachedCellData;
@@ -148,6 +150,7 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
                 } else {
                     // 本地也没有数据，请求网络数据
                     this.isLoading = hasDiskUuid;
+                    this.loadingStartTime = System.currentTimeMillis();
                     if (hasDiskUuid) {
                         CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
                     }
@@ -155,6 +158,7 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
             } else {
                 // 无法获取 CellInfo，请求网络数据
                 this.isLoading = hasDiskUuid;
+                this.loadingStartTime = System.currentTimeMillis();
                 if (hasDiskUuid) {
                     CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
                 }
@@ -361,6 +365,9 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
                             com.mcdyc.infinitycell.InfinityCell.LOGGER.error("Failed to setup JEI cell view from cache", e);
                         }
                     }
+                } else if (System.currentTimeMillis() - this.loadingStartTime > LOADING_TIMEOUT_MS) {
+                    // 超时仍无响应：停止转圈，落入下方空数据分支（避免无限加载）
+                    this.isLoading = false;
                 }
             }
         } else {
@@ -591,7 +598,13 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
             if (storedItemTypes > 0) {
                 NumberFormat format = NumberFormat.getInstance();
                 List<String> tooltip = new ArrayList<>();
-                tooltip.add(I18n.format("infinitycell.jei.cellview.hover.1", format.format(storedItemTypes)));
+                if (storedItemTypes > MAX_ITEMS_TO_REQUEST) {
+                    // 种类超过预览上限：显示真实总数并提示仅采样了前 N 种
+                    tooltip.add(I18n.format("infinitycell.jei.cellview.hover.1.capped",
+                            format.format(storedItemTypes), format.format((long) MAX_ITEMS_TO_REQUEST)));
+                } else {
+                    tooltip.add(I18n.format("infinitycell.jei.cellview.hover.1", format.format(storedItemTypes)));
+                }
 
                 if (bytesPerType > 0) {
                     long byteLoss = bytesPerType * storedItemTypes;

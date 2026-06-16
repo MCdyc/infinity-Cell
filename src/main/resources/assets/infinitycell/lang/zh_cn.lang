@@ -51,6 +51,7 @@ infinitycell.jei.cellview.items=物品
 infinitycell.jei.cellview.buckets=桶
 infinitycell.jei.cellview.units=单位
 infinitycell.jei.cellview.hover.1=类型数: %s
+infinitycell.jei.cellview.hover.1.capped=类型数: %s (仅显示前 %s 种)
 infinitycell.jei.cellview.hover.2=每类型字节数: 0
 infinitycell.jei.cellview.hover.3=%s 字节/类型 * %s 类型 = %s 字节
 infinitycell.jei.cellview.hover.stored=已存储 %s %s

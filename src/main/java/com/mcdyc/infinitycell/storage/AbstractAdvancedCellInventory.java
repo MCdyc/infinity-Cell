@@ -187,7 +187,13 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getStoredItemTypes()
     {
-        return data.getChannelData(channel).totalTypes;
+        AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
+        // 客户端代理只持有从 NBT 读来的标量 totalTypes，counts 恒空；
+        // 服务端持有真实 counts，直接取 size 避免累加计数器 totalTypes 漂移。
+        if (net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            return chanData.totalTypes;
+        }
+        return chanData.counts.size();
     }
 
     /**
@@ -388,7 +394,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
         nbt.setLong("UsedBytes", chanData.totalBytes);
         nbt.setLong("UsedBytesOverflow", chanData.totalBytesOverflow);
-        nbt.setLong("StoredTypes", chanData.totalTypes);
+        nbt.setLong("StoredTypes", chanData.counts.size());
         nbt.setLong("StoredItemCount", chanData.totalItemCount);
         nbt.setLong("StoredItemCountOverflow", chanData.totalItemCountOverflow);
     }
