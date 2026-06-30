@@ -17,8 +17,9 @@ import java.util.Map;
 
 /**
  * 后端数据中心 (FastUtil 版)
- * 完全抛弃 AE 自带的 IItemList 链表与慢速 HashMap，
- * 采用高性能 Object2LongOpenCustomHashMap 直接建立 `UUID` 到 `真实数据` 的映射库。
+ * 用高性能 Object2LongOpenHashMap 直接建立 `物种样板 -> 数量` 的映射库。
+ * 总数量 / 总字节以单 long 饱和累加维护（超过 Long.MAX 即封顶，下限 0），
+ * 不再使用双 long 溢出寄存器——单盘存量逼近 9.2e18 的情形现实中不可达。
  */
 public class AdvancedCellData extends WorldSavedData
 {
@@ -27,10 +28,8 @@ public class AdvancedCellData extends WorldSavedData
     {
         public Object2LongMap<T> counts = new it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap<>();
         public long totalBytes = 0;
-        public long totalBytesOverflow = 0; // 高位，记录爆了多少次 Long.MAX_VALUE
         public long totalTypes = 0;
         public long totalItemCount = 0;
-        public long totalItemCountOverflow = 0; // 高位，记录爆了多少次 Long.MAX_VALUE
 
         // 增量 NBT 缓存支持：避免每次保存都把几十万个物品重新转化一遍 NBT
         private final it.unimi.dsi.fastutil.objects.Object2ObjectMap<T, NBTTagCompound> nbtCache =
@@ -40,112 +39,60 @@ public class AdvancedCellData extends WorldSavedData
 
         /**
          * 以 O(1) 性能存取海量物品。
-         * 处理数量的增减，自动在达到 0 余量时剔除项以保持 map 的干净。
-         * 并维护双 long 作为大数寄存器累加整体数量与字节。
+         * 处理数量的增减，自动在达到 0 余量时剔除项以保持 map 的干净；
+         * 总数量与字节用饱和加法维护（封顶 Long.MAX，下限 0）。
          *
          * @param stack      待变动数量的物品样板。
-         * @param deltaCount 欲增加（此值为正）或扣除（此值为负）的真实个数/豪桶数。
-         * @param deltaBytes 根据此次加减行为带来的占用字节数加减。
-         * @param deltaTypes 若因此次操作让该盘内多了一个前所未有的品种则为1，归零出借则为-1，否则为0。
+         * @param deltaCount 欲增加（正）或扣除（负）的真实个数 / 毫桶数。
+         * @param deltaBytes 本次加减带来的占用字节数变化。
+         * @param deltaTypes 兼容旧签名保留，已不使用——品种数恒等于 {@code counts.size()}。
          */
         public void modify(T stack, long deltaCount, long deltaBytes, long deltaTypes)
         {
-            if (stack == null || (deltaCount == 0L && deltaBytes == 0L && deltaTypes == 0L)) {
+            if (stack == null || (deltaCount == 0L && deltaBytes == 0L)) {
                 return;
             }
 
-            T storedKey = counts.containsKey(stack) ? stack : getStoredKey(stack);
-            T key = storedKey != null ? storedKey : stack.copy();
-            long currentCount = storedKey != null ? counts.getLong(storedKey) : 0L;
+            // 数量索引：直接哈希命中，O(1)。AE 栈的 equals/hashCode 基于物种身份（不含 stackSize），键稳定，
+            // 故无需再线性扫描寻找“规范键”。
+            long currentCount = counts.getLong(stack); // 缺省值 0，即等同“不存在”
             long newCount = StorageChannelUtil.safeAdd(currentCount, deltaCount);
             if (newCount <= 0) {
-                counts.removeLong(key);
-                nbtCache.remove(key); // 被抽干了，从缓存里杀掉
-                dirtyItems.remove(key);
-            } else {
+                counts.removeLong(stack);
+                nbtCache.remove(stack); // 被抽干了，从缓存里杀掉
+                dirtyItems.remove(stack);
+            } else if (currentCount == 0) {
+                // 全新种类：存入不可变副本作键，避免外部复用同一 IAEStack 实例改动 stackSize 污染键
+                T key = stack.copy();
                 counts.put(key, newCount);
-                dirtyItems.add(key);  // 标记为脏数据，等待下一次落盘时只序列化它
+                dirtyItems.add(key);
+            } else {
+                // 已有等价键：fastutil 保留原键对象、仅更新值；脏集合同理只认等价键
+                counts.put(stack, newCount);
+                dirtyItems.add(stack);
             }
 
-            // 模拟 int128：双 long 加减法计算总物品数
-            if (deltaCount > 0) {
-                if (Long.MAX_VALUE - this.totalItemCount < deltaCount) {
-                    this.totalItemCountOverflow++;
-                    // 进位后，原数值减去所需差额，等价于 (this.totalItemCount + deltaCount) - Long.MAX_VALUE
-                    this.totalItemCount = deltaCount - (Long.MAX_VALUE - this.totalItemCount);
-                } else {
-                    this.totalItemCount += deltaCount;
-                }
-            } else if (deltaCount < 0) {
-                long absDelta = deltaCount == Long.MIN_VALUE ? Long.MAX_VALUE : -deltaCount;
-                if (this.totalItemCount < absDelta) {
-                    if (this.totalItemCountOverflow > 0) {
-                        this.totalItemCountOverflow--;
-                        // 借位后，用借来的 Long.MAX_VALUE 补足差额
-                        this.totalItemCount = Long.MAX_VALUE - (absDelta - this.totalItemCount);
-                    } else {
-                        this.totalItemCount = 0; // 防止负向底穿
-                    }
-                } else {
-                    this.totalItemCount += deltaCount;
-                }
-            }
-            
-            // 模拟 int128：双 long 加减法计算总字节数
-            if (deltaBytes > 0) {
-                if (Long.MAX_VALUE - this.totalBytes < deltaBytes) {
-                    this.totalBytesOverflow++;
-                    this.totalBytes = deltaBytes - (Long.MAX_VALUE - this.totalBytes);
-                } else {
-                    this.totalBytes += deltaBytes;
-                }
-            } else if (deltaBytes < 0) {
-                long absDelta = deltaBytes == Long.MIN_VALUE ? Long.MAX_VALUE : -deltaBytes;
-                if (this.totalBytes < absDelta) {
-                    if (this.totalBytesOverflow > 0) {
-                        this.totalBytesOverflow--;
-                        this.totalBytes = Long.MAX_VALUE - (absDelta - this.totalBytes);
-                    } else {
-                        this.totalBytes = 0; // 防止负向底穿
-                    }
-                } else {
-                    this.totalBytes += deltaBytes;
-                }
-            }
-
+            // 总量 / 字节：单 long 饱和累加（safeAdd 正向封顶 Long.MAX，再用 max(0,..) 兜住负向底穿）
+            this.totalItemCount = Math.max(0L, StorageChannelUtil.safeAdd(this.totalItemCount, deltaCount));
+            this.totalBytes = Math.max(0L, StorageChannelUtil.safeAdd(this.totalBytes, deltaBytes));
             this.totalTypes = counts.size();
         }
 
         /**
-         * FastUtil uses equals/hashCode lookup, but AE stack implementations can
-         * carry mutable stack sizes. Reusing the canonical key already present in
-         * counts keeps counts, NBT cache and dirty set aligned.
-         */
-        private T getStoredKey(T stack)
-        {
-            for (T key : counts.keySet()) {
-                if (key.equals(stack)) {
-                    return key;
-                }
-            }
-            return null;
-        }
-
-        /**
-         * 供外部获取安全的单一 long 数值（用于显示或网络发包）。
-         * 如果内部因为无限灌注累计到溢出过了，这里只显示长整型的最大数值以防前端解码成负数异常。
-         * @return 受保护的物品总体积数量。
+         * 供外部获取安全的单一 long 物品总数（用于显示或网络发包）。
+         * 数值在累加时已饱和封顶，绝不会解码成负数。
+         * @return 物品总数。
          */
         public long getDisplayItemCount() {
-            return this.totalItemCountOverflow > 0 ? Long.MAX_VALUE : this.totalItemCount;
+            return this.totalItemCount;
         }
 
         /**
-         * 供外部获取安全的总字节数占用显示。
-         * @return 受保护的总字节数占用。
+         * 供外部获取安全的总字节数占用显示（已在累加时饱和封顶）。
+         * @return 总字节数占用。
          */
         public long getDisplayBytes() {
-            return this.totalBytesOverflow > 0 ? Long.MAX_VALUE : this.totalBytes;
+            return this.totalBytes;
         }
 
         /**
@@ -179,8 +126,7 @@ public class AdvancedCellData extends WorldSavedData
 
         public long getStoredAmount(T stack)
         {
-            T storedKey = counts.containsKey(stack) ? stack : getStoredKey(stack);
-            return storedKey == null ? 0L : counts.getLong(storedKey);
+            return counts.getLong(stack); // O(1) 哈希命中，缺省 0
         }
 
         /**
@@ -265,7 +211,7 @@ public class AdvancedCellData extends WorldSavedData
     {
         if (channels.isEmpty()) return true;
         for (ChannelData<?> data : channels.values()) {
-            if (!data.counts.isEmpty() || data.totalItemCount > 0 || data.totalItemCountOverflow > 0) return false;
+            if (!data.counts.isEmpty() || data.totalItemCount > 0) return false;
         }
         return true;
     }
@@ -301,10 +247,8 @@ public class AdvancedCellData extends WorldSavedData
 
             ChannelData<?> data = entry.getValue();
             channelNbt.setLong("TotalBytes", data.totalBytes);
-            channelNbt.setLong("TotalBytesOverflow", data.totalBytesOverflow);
             channelNbt.setLong("TotalTypes", data.totalTypes);
             channelNbt.setLong("TotalItemCount", data.totalItemCount);
-            channelNbt.setLong("TotalItemCountOverflow", data.totalItemCountOverflow);
 
             channelNbt.setTag("Items", data.getOrUpdateNbtList());
 
@@ -344,10 +288,17 @@ public class AdvancedCellData extends WorldSavedData
     {
         ChannelData<T> data = getChannelData(channel);
         data.totalBytes = Math.max(0L, channelNbt.getLong("TotalBytes"));
-        data.totalBytesOverflow = Math.max(0L, channelNbt.getLong("TotalBytesOverflow"));
         data.totalTypes = Math.max(0L, channelNbt.getLong("TotalTypes"));
         data.totalItemCount = Math.max(0L, channelNbt.getLong("TotalItemCount"));
-        data.totalItemCountOverflow = Math.max(0L, channelNbt.getLong("TotalItemCountOverflow"));
+
+        // 兼容旧档：曾用双 long 溢出寄存器记录“爆过几次 Long.MAX”，
+        // 现已改单 long 饱和；若旧档高位 > 0，直接折叠为饱和 Long.MAX。
+        if (channelNbt.getLong("TotalItemCountOverflow") > 0L) {
+            data.totalItemCount = Long.MAX_VALUE;
+        }
+        if (channelNbt.getLong("TotalBytesOverflow") > 0L) {
+            data.totalBytes = Long.MAX_VALUE;
+        }
 
         // 读取完毕后，下达全局脏指令，让缓存和真实计数器同步
         data.isFullDirty = true;

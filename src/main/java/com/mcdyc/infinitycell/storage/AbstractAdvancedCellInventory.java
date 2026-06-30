@@ -78,10 +78,11 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
             AdvancedCellData.ChannelData<T> chanData = proxy.getChannelData(channel);
             if (chanData != null) {
                 chanData.totalBytes = Math.max(0L, nbt.getLong("UsedBytes"));
-                chanData.totalBytesOverflow = Math.max(0L, nbt.getLong("UsedBytesOverflow"));
                 chanData.totalTypes = Math.max(0L, nbt.getLong("StoredTypes"));
                 chanData.totalItemCount = Math.max(0L, nbt.getLong("StoredItemCount"));
-                chanData.totalItemCountOverflow = Math.max(0L, nbt.getLong("StoredItemCountOverflow"));
+                // 兼容旧档：曾有的溢出高位 > 0 时，折叠为饱和 Long.MAX
+                if (nbt.getLong("UsedBytesOverflow") > 0L) chanData.totalBytes = Long.MAX_VALUE;
+                if (nbt.getLong("StoredItemCountOverflow") > 0L) chanData.totalItemCount = Long.MAX_VALUE;
             }
             return proxy;
         }
@@ -480,17 +481,13 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         AdvancedCellData.ChannelData<T> chanData = data == null ? null : data.getChannelData(channel);
         if (chanData == null) {
             nbt.setLong("UsedBytes", 0L);
-            nbt.setLong("UsedBytesOverflow", 0L);
             nbt.setLong("StoredTypes", 0L);
             nbt.setLong("StoredItemCount", 0L);
-            nbt.setLong("StoredItemCountOverflow", 0L);
             return;
         }
         nbt.setLong("UsedBytes", chanData.totalBytes);
-        nbt.setLong("UsedBytesOverflow", chanData.totalBytesOverflow);
         nbt.setLong("StoredTypes", chanData.counts.size());
         nbt.setLong("StoredItemCount", chanData.totalItemCount);
-        nbt.setLong("StoredItemCountOverflow", chanData.totalItemCountOverflow);
     }
 
 }
