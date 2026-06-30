@@ -217,6 +217,32 @@ public class AdvancedCellData extends WorldSavedData
     }
 
     /**
+     * @return 人类可读的内容摘要 "N types, M stored"（遍历已存在的通道，不创建空通道）。
+     */
+    public String summary()
+    {
+        long types = 0, count = 0;
+        for (ChannelData<?> cd : channels.values()) {
+            types += cd.typeCount();
+            count = StorageChannelUtil.safeAdd(count, cd.getDisplayItemCount());
+        }
+        return types + " types, " + count + " stored";
+    }
+
+    /**
+     * @return 第一个有内容的存储通道（用于 recover 时推断该给哪种类型的盘）；无内容则 {@code null}。
+     */
+    public IStorageChannel<?> firstNonEmptyChannel()
+    {
+        for (Map.Entry<IStorageChannel<?>, ChannelData<?>> e : channels.entrySet()) {
+            if (e.getValue().typeCount() > 0) {
+                return e.getKey();
+            }
+        }
+        return null;
+    }
+
+    /**
      * 清除 dirty 标记，用于分离空磁盘时防止重新保存。
      * 由于 Forge 不提供安全的方法来干掉一个没用的存档数据文件，
      * 当我们判定这个文件已经可以寿终正寝时，通过反射将父类的 `dirty` 置零强行断开它的求生欲保存脉络。

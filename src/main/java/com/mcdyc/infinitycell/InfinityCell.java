@@ -87,6 +87,7 @@ public class InfinityCell
     public void serverStarting(net.minecraftforge.fml.common.event.FMLServerStartingEvent event)
     {
         event.registerServerCommand(new com.mcdyc.infinitycell.command.CommandCleanEmptyCells());
+        event.registerServerCommand(new com.mcdyc.infinitycell.command.CommandInfinityCell());
     }
 
     /**

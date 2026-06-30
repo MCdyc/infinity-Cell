@@ -24,7 +24,7 @@ public class AdvancedCellHandler extends appeng.core.features.registries.cell.Ba
     @Override
     public boolean isCell(ItemStack is)
     {
-        return is != null && is.getItem() instanceof AdvancedCellItem;
+        return is != null && is.getCount() == 1 && is.getItem() instanceof AdvancedCellItem;
     }
 
     /**
