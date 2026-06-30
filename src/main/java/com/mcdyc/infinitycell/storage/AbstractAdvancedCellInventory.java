@@ -19,11 +19,12 @@ import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.items.IItemHandler;
 
 import java.io.File;
+import java.util.UUID;
 
 /**
  * 自定义盘的公共抽象基类，包含两个子类共享的所有逻辑：
  * <ul>
- *   <li>UUID 数据加载 ({@link #getOrCreateData})</li>
+ *   <li>UUID 数据加载 ({@link #loadData})</li>
  *   <li>物品提取 ({@link #extractItems})</li>
  *   <li>可用物品列举 ({@link #getAvailableItems})</li>
  *   <li>所有 ICellInventory / ICellInventoryHandler 样板方法</li>
@@ -39,7 +40,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     protected final ItemStack cellItem;
     protected final ISaveProvider saveProvider;
     protected final IStorageChannel<T> channel;
-    protected final AdvancedCellData data;
+    protected AdvancedCellData data;
 
     /**
      * 抽象父类的共有构造器。
@@ -55,18 +56,18 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         this.cellItem = cellItem;
         this.saveProvider = saveProvider;
         this.channel = channel;
-        this.data = getOrCreateData();
+        this.data = loadData();
     }
 
     // -------------------------------------------------------------------------
     //  数据加载（UUID 绑定的全局持久化存储）
     // -------------------------------------------------------------------------
 
-    private AdvancedCellData getOrCreateData()
+    private AdvancedCellData loadData()
     {
         NBTTagCompound nbt = cellItem.getTagCompound();
         if (nbt == null || !nbt.hasKey("disk_uuid")) {
-            return new AdvancedCellData("empty_no_uuid");
+            return null;
         }
 
         String diskUuid = nbt.getString("disk_uuid");
@@ -76,18 +77,44 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
             AdvancedCellData proxy = new AdvancedCellData(diskUuid);
             AdvancedCellData.ChannelData<T> chanData = proxy.getChannelData(channel);
             if (chanData != null) {
-                chanData.totalBytes = nbt.getLong("UsedBytes");
-                chanData.totalBytesOverflow = nbt.getLong("UsedBytesOverflow");
-                chanData.totalTypes = nbt.getLong("StoredTypes");
-                chanData.totalItemCount = nbt.getLong("StoredItemCount");
-                chanData.totalItemCountOverflow = nbt.getLong("StoredItemCountOverflow");
+                chanData.totalBytes = Math.max(0L, nbt.getLong("UsedBytes"));
+                chanData.totalBytesOverflow = Math.max(0L, nbt.getLong("UsedBytesOverflow"));
+                chanData.totalTypes = Math.max(0L, nbt.getLong("StoredTypes"));
+                chanData.totalItemCount = Math.max(0L, nbt.getLong("StoredItemCount"));
+                chanData.totalItemCountOverflow = Math.max(0L, nbt.getLong("StoredItemCountOverflow"));
             }
             return proxy;
         }
 
         World overworld = DimensionManager.getWorld(0);
         if (overworld == null) {
-            return new AdvancedCellData("empty_fallback");
+            return null;
+        }
+
+        String dataKey = "infinite/" + diskUuid;
+        return (AdvancedCellData) overworld.getMapStorage()
+                .getOrLoadData(AdvancedCellData.class, dataKey);
+    }
+
+    protected AdvancedCellData getDataForMutation()
+    {
+        if (data != null) {
+            return data;
+        }
+
+        NBTTagCompound nbt = cellItem.getTagCompound();
+        if (nbt == null) {
+            nbt = new NBTTagCompound();
+            cellItem.setTagCompound(nbt);
+        }
+        if (!nbt.hasKey("disk_uuid")) {
+            nbt.setString("disk_uuid", UUID.randomUUID().toString());
+        }
+
+        World overworld = DimensionManager.getWorld(0);
+        if (overworld == null || net.minecraftforge.fml.common.FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            data = new AdvancedCellData("empty_fallback");
+            return data;
         }
 
         File infiniteDir = new File(overworld.getSaveHandler().getWorldDirectory(), "data/infinite");
@@ -95,16 +122,15 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
             infiniteDir.mkdirs();
         }
 
-        String dataKey = "infinite/" + diskUuid;
+        String dataKey = "infinite/" + nbt.getString("disk_uuid");
         AdvancedCellData storageData = (AdvancedCellData) overworld.getMapStorage()
                 .getOrLoadData(AdvancedCellData.class, dataKey);
-
         if (storageData == null) {
             storageData = new AdvancedCellData(dataKey);
             overworld.getMapStorage().setData(dataKey, storageData);
         }
-
-        return storageData;
+        data = storageData;
+        return data;
     }
 
     // -------------------------------------------------------------------------
@@ -123,16 +149,23 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public T extractItems(T request, Actionable mode, IActionSource src)
     {
-        if (request == null) return null;
+        if (request == null || request.getStackSize() <= 0L) return null;
+
+        if (data == null) return null;
 
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
-        long currentCount = chanData.counts.getLong(request);
+        long currentCount = chanData.getStoredAmount(request);
 
         if (currentCount == 0) return null;
 
         long extractable = Math.min(currentCount, request.getStackSize());
 
         if (mode == Actionable.MODULATE) {
+            AdvancedCellData writeData = getDataForMutation();
+            chanData = writeData.getChannelData(channel);
+            currentCount = chanData.getStoredAmount(request);
+            if (currentCount == 0) return null;
+            extractable = Math.min(currentCount, request.getStackSize());
             long newSize = currentCount - extractable;
             long bytesDelta = getBytesForStoredAmount(newSize) - getBytesForStoredAmount(currentCount);
             boolean isRemoved = newSize <= 0;
@@ -159,6 +192,8 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public IItemList<T> getAvailableItems(IItemList<T> out)
     {
+        if (data == null) return out;
+
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
         for (Object2LongMap.Entry<T> entry : chanData.counts.object2LongEntrySet()) {
             T copy = entry.getKey().copy();
@@ -178,6 +213,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getUsedBytes()
     {
+        if (data == null) return 0L;
         return data.getChannelData(channel).getDisplayBytes();
     }
 
@@ -187,6 +223,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getStoredItemTypes()
     {
+        if (data == null) return 0L;
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
         // 客户端代理只持有从 NBT 读来的标量 totalTypes，counts 恒空；
         // 服务端持有真实 counts，直接取 size 避免累加计数器 totalTypes 漂移。
@@ -202,6 +239,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
     @Override
     public long getStoredItemCount()
     {
+        if (data == null) return 0L;
         return data.getChannelData(channel).getDisplayItemCount();
     }
 
@@ -220,8 +258,7 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         if (amount <= 0) {
             return 0;
         }
-        long unitsPerByte = Math.max(1, channel.getUnitsPerByte() / 8L);
-        return (amount + unitsPerByte - 1) / unitsPerByte;
+        return StorageChannelUtil.bytesForAmount(channel, amount);
     }
 
     // -------------------------------------------------------------------------
@@ -369,14 +406,40 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
      */
     private void persistLocalChanges()
     {
+        if (data == null) {
+            syncStatsToNBT();
+            return;
+        }
+
         if (data.isEmpty()) {
-            data.clearDirty();
+            if (deleteBackendFile()) {
+                data.clearDirty();
+            } else {
+                data.markDirty();
+            }
         } else {
             data.markDirty();
         }
 
         // 将统计数据同步到 ItemStack 的 NBT，供客户端 Tooltip 读取
         syncStatsToNBT();
+    }
+
+    private boolean deleteBackendFile()
+    {
+        NBTTagCompound nbt = cellItem.getTagCompound();
+        if (nbt == null || !nbt.hasKey("disk_uuid")) {
+            return true;
+        }
+
+        World overworld = DimensionManager.getWorld(0);
+        if (overworld == null) {
+            return false;
+        }
+
+        File dataFile = new File(new File(overworld.getSaveHandler().getWorldDirectory(), "data/infinite"),
+                nbt.getString("disk_uuid") + ".dat");
+        return !dataFile.exists() || dataFile.delete();
     }
 
     /**
@@ -391,7 +454,15 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
             cellItem.setTagCompound(nbt);
         }
 
-        AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
+        AdvancedCellData.ChannelData<T> chanData = data == null ? null : data.getChannelData(channel);
+        if (chanData == null) {
+            nbt.setLong("UsedBytes", 0L);
+            nbt.setLong("UsedBytesOverflow", 0L);
+            nbt.setLong("StoredTypes", 0L);
+            nbt.setLong("StoredItemCount", 0L);
+            nbt.setLong("StoredItemCountOverflow", 0L);
+            return;
+        }
         nbt.setLong("UsedBytes", chanData.totalBytes);
         nbt.setLong("UsedBytesOverflow", chanData.totalBytesOverflow);
         nbt.setLong("StoredTypes", chanData.counts.size());

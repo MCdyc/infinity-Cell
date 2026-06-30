@@ -9,8 +9,10 @@ import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import com.mcdyc.infinitycell.item.AdvancedCellItem;
 import com.mcdyc.infinitycell.storage.AdvancedCellData;
+import com.mcdyc.infinitycell.storage.StorageChannelUtil;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -124,14 +126,11 @@ public class PacketReturnCellData implements IMessage {
     private IStorageChannel<?> getChannelFromStack(IAEStack<?> stack) {
         if (stack == null) return null;
         for (IStorageChannel<?> ch : AEApi.instance().storage().storageChannels()) {
-            if (stack.isItem() && ch instanceof appeng.api.storage.channels.IItemStorageChannel) {
+            if (stack.isItem() && StorageChannelUtil.isItemChannel(ch)) {
                 return ch;
-            } else if (stack.isFluid() && ch instanceof appeng.api.storage.channels.IFluidStorageChannel) {
+            } else if (stack.isFluid() && StorageChannelUtil.isFluidChannel(ch)) {
                 return ch;
-            } else if (!stack.isItem() && !stack.isFluid()
-                    && !(ch instanceof appeng.api.storage.channels.IItemStorageChannel)
-                    && !(ch instanceof appeng.api.storage.channels.IFluidStorageChannel)) {
-                // 气体或其他自定义类型：通过排除法匹配
+            } else if (!stack.isItem() && !stack.isFluid() && StorageChannelUtil.isGasChannel(ch)) {
                 return ch;
             }
         }
@@ -165,9 +164,8 @@ public class PacketReturnCellData implements IMessage {
     /**
      * 在服务端创建响应包并发送。
      *
-     * <p>采用"后端优先"策略：由于客户端只在带 disk_uuid 时才发请求，
-     * 服务端只需按 UUID 直接读后端 MapStorage，无需在玩家背包里找 ItemStack。
-     * 这样无论盘在背包、ME 驱动器、IO 端口还是网络中都能正确回包，杜绝预览永久转圈。
+     * <p>采用服务端授权策略：服务端先在玩家库存和当前打开容器中查找同 UUID 元件，
+     * 只有命中后才读取后端 MapStorage。找不到时仍返回空响应，避免客户端永久加载。
      *
      * <p>核心不变量：带 UUID 的请求<b>永不静默 return null</b>，必发包（哪怕是空盘的空响应）。
      */
@@ -191,9 +189,15 @@ public class PacketReturnCellData implements IMessage {
         int cappedMaxItems = Math.max(0, Math.min(maxItems, MAX_RETURNED_STACKS));
         long totalBytes = totalBytesForCell(cellItem);
 
-        // ---- 主路径：按 UUID 直接读后端 ----
+        // ---- 主路径：先验证玩家确实可访问该 UUID，再读后端 ----
         String uuid = getDiskUuid(cellStack);
         if (uuid != null) {
+            ItemStack authorizedStack = findMatchingPlayerStack(player, cellStack);
+            if (authorizedStack.isEmpty()) {
+                sendResponse(player, cellStack, new ArrayList<>(), 0L, 0L, 0L, totalBytes);
+                return null;
+            }
+
             AdvancedCellData data = AdvancedCellData.loadByUuid(uuid);
             if (data != null) {
                 AdvancedCellData.ChannelData cd = data.getChannelData((IStorageChannel) channel);
@@ -201,11 +205,11 @@ public class PacketReturnCellData implements IMessage {
                 for (Object s : cd.collectFirstN(cappedMaxItems)) {
                     if (s instanceof IAEStack) storedStacks.add((IAEStack<?>) s);
                 }
-                sendResponse(player, cellStack, storedStacks,
+                sendResponse(player, authorizedStack, storedStacks,
                         cd.getDisplayItemCount(), cd.typeCount(), cd.getDisplayBytes(), totalBytes);
             } else {
                 // 空盘无文件：发空响应（关键——消除空盘无限转圈）
-                sendResponse(player, cellStack, new ArrayList<>(), 0L, 0L, 0L, totalBytes);
+                sendResponse(player, authorizedStack, new ArrayList<>(), 0L, 0L, 0L, totalBytes);
             }
             return null;
         }
@@ -283,6 +287,18 @@ public class PacketReturnCellData implements IMessage {
         for (ItemStack stack : player.inventory.offHandInventory) {
             if (matchesRequestedCell(stack, requestedStack, requestedUuid)) {
                 return stack;
+            }
+        }
+        for (ItemStack stack : player.inventory.armorInventory) {
+            if (matchesRequestedCell(stack, requestedStack, requestedUuid)) {
+                return stack;
+            }
+        }
+        if (player.openContainer != null) {
+            for (Slot slot : player.openContainer.inventorySlots) {
+                if (slot != null && matchesRequestedCell(slot.getStack(), requestedStack, requestedUuid)) {
+                    return slot.getStack();
+                }
             }
         }
         return ItemStack.EMPTY;

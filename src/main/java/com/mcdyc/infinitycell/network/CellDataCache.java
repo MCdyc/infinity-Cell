@@ -1,6 +1,7 @@
 package com.mcdyc.infinitycell.network;
 
 import appeng.api.storage.data.IAEStack;
+import com.mcdyc.infinitycell.storage.StorageChannelUtil;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -215,7 +216,7 @@ public class CellDataCache {
         public long getRemainingItemCount() {
             // 计算剩余容量 (totalBytes - usedBytes)，需要转换为物品数量
             // 这里简化处理
-            return totalBytes - usedBytes;
+            return StorageChannelUtil.safePositiveSubtract(totalBytes, usedBytes);
         }
 
         public boolean isExpired() {

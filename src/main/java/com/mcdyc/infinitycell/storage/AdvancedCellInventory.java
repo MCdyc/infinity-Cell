@@ -67,48 +67,54 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public T injectItems(T input, Actionable type, IActionSource src)
     {
-        if (input == null || input.getStackSize() == 0) return null;
+        if (input == null || input.getStackSize() <= 0L) return null;
 
-        AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
-        long currentCount = chanData.counts.getLong(input);
+        AdvancedCellData workingData = type == Actionable.MODULATE ? getDataForMutation() : data;
+        AdvancedCellData.ChannelData<T> chanData = workingData == null ? null : workingData.getChannelData(channel);
+        if (type == Actionable.MODULATE && chanData == null) {
+            return input;
+        }
+
+        long currentCount = chanData == null ? 0L : chanData.getStoredAmount(input);
         boolean isNewType = currentCount == 0;
 
         // 种类上限拦截
-        if (isNewType && chanData.totalTypes >= maxTypes) {
+        if (isNewType && chanData != null && chanData.typeCount() >= maxTypes) {
             return input;
         }
 
         long count = input.getStackSize();
         long unPerByte = getUnPerByte();
 
-        long oldBytes = (currentCount + unPerByte - 1) / unPerByte;
-        long newBytes = (currentCount + count + unPerByte - 1) / unPerByte;
-        long bytesDelta = newBytes - oldBytes;
-        long freeBytes = maxBytes - chanData.totalBytes;
+        long oldBytes = StorageChannelUtil.bytesForAmount(channel, currentCount);
+        long usedBytes = chanData == null ? 0L : chanData.totalBytes;
+        long freeBytes = StorageChannelUtil.safePositiveSubtract(maxBytes, usedBytes);
+        long maxBytesForThisType = StorageChannelUtil.safeAdd(oldBytes, freeBytes);
+        long maxStackSizeForThisType = StorageChannelUtil.safeMultiply(maxBytesForThisType, unPerByte);
+        long countWeCanAdd = StorageChannelUtil.safePositiveSubtract(maxStackSizeForThisType, currentCount);
+
+        long acceptedCount = Math.min(count, countWeCanAdd);
 
         // 字节容量上限拦截
-        if (bytesDelta > freeBytes) {
-            long bytesWeCanAdd = freeBytes < 0 ? 0 : freeBytes;
-            long maxBytesForThisType = oldBytes + bytesWeCanAdd;
-            long maxStackSizeForThisType = maxBytesForThisType * unPerByte;
-            long countWeCanAdd = maxStackSizeForThisType - currentCount;
-
-            if (countWeCanAdd <= 0) return input;
+        if (acceptedCount < count) {
+            if (acceptedCount <= 0L) return input;
 
             if (type == Actionable.MODULATE) {
-                long actNewBytes = ((currentCount + countWeCanAdd) + unPerByte - 1) / unPerByte;
+                long actNewBytes = StorageChannelUtil.bytesForAmount(channel, StorageChannelUtil.safeAdd(currentCount, acceptedCount));
                 long actBytesDelta = actNewBytes - oldBytes;
-                chanData.modify(input, countWeCanAdd, actBytesDelta, isNewType ? 1 : 0);
+                chanData.modify(input, acceptedCount, actBytesDelta, isNewType ? 1 : 0);
                 saveChanges();
             }
 
             T rejected = input.copy();
-            rejected.setStackSize(count - countWeCanAdd);
+            rejected.setStackSize(count - acceptedCount);
             return rejected;
         }
 
         if (type == Actionable.MODULATE) {
-            chanData.modify(input, count, bytesDelta, isNewType ? 1 : 0);
+            long newBytes = StorageChannelUtil.bytesForAmount(channel, StorageChannelUtil.safeAdd(currentCount, acceptedCount));
+            long bytesDelta = newBytes - oldBytes;
+            chanData.modify(input, acceptedCount, bytesDelta, isNewType ? 1 : 0);
             saveChanges();
         }
         return null;
@@ -135,7 +141,7 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public long getFreeBytes()
     {
-        return Math.max(0, maxBytes - getUsedBytes());
+        return StorageChannelUtil.safePositiveSubtract(maxBytes, getUsedBytes());
     }
 
     /**
@@ -165,7 +171,7 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public long getRemainingItemCount()
     {
-        return getFreeBytes() * getUnPerByte();
+        return StorageChannelUtil.safeMultiply(getFreeBytes(), getUnPerByte());
     }
 
     /**
@@ -186,8 +192,9 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public boolean canHoldNewItem()
     {
+        if (data == null) return true;
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
-        return chanData.totalTypes < maxTypes && chanData.totalBytes < maxBytes;
+        return chanData.typeCount() < maxTypes && chanData.totalBytes < maxBytes;
     }
 
     /**
@@ -197,6 +204,7 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public int getStatusForCell()
     {
+        if (data == null) return 4;
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
         if (chanData.totalBytes >= maxBytes) {
             return 3; // 红色 - 已满
@@ -218,6 +226,6 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
      */
     private long getUnPerByte()
     {
-        return Math.max(1L, channel.getUnitsPerByte() / 8L);
+        return StorageChannelUtil.unitsPerByte(channel);
     }
 }

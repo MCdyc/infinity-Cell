@@ -52,10 +52,15 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public T injectItems(T input, Actionable type, IActionSource src)
     {
-        if (input == null || input.getStackSize() == 0) return null;
+        if (input == null || input.getStackSize() <= 0L) return null;
 
-        AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
-        long currentCount = chanData.counts.getLong(input);
+        AdvancedCellData workingData = type == Actionable.MODULATE ? getDataForMutation() : data;
+        AdvancedCellData.ChannelData<T> chanData = workingData == null ? null : workingData.getChannelData(channel);
+        if (type == Actionable.MODULATE && chanData == null) {
+            return input;
+        }
+
+        long currentCount = chanData == null ? 0L : chanData.getStoredAmount(input);
         boolean isNewType = currentCount == 0;
 
         // 单种物品上限拦截：避免单个种类的 stackSize 溢出 long 后对外显示乱码
@@ -64,10 +69,13 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
         }
 
         long count = input.getStackSize();
-        long canAdd = PER_TYPE_MAX - currentCount; // 还能追加多少
+        long canAdd = StorageChannelUtil.safePositiveSubtract(PER_TYPE_MAX, currentCount); // 还能追加多少
         long actualAdd = Math.min(count, canAdd);  // 实际能放入的数量
+        if (actualAdd <= 0L) {
+            return input;
+        }
 
-        // 1 item = 1 byte（纯 1:1 计数，绝不溢出，仅用于 totalBytes 统计）
+        // 1 stored unit = 1 byte（纯 1:1 计数，绝不溢出，仅用于 totalBytes 统计）
         if (type == Actionable.MODULATE) {
             chanData.modify(input, actualAdd, actualAdd, isNewType ? 1 : 0);
             saveChanges();
@@ -176,6 +184,7 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     @Override
     public int getStatusForCell()
     {
+        if (data == null) return 4;
         return data.getChannelData(channel).totalBytes == 0 ? 4 : 1;
     }
 }

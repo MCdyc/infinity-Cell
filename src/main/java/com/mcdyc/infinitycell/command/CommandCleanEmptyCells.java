@@ -83,7 +83,9 @@ public class CommandCleanEmptyCells extends CommandBase {
                     .getOrLoadData(AdvancedCellData.class, dataKey);
 
             if (storageData != null && storageData.isEmpty()) {
+                storageData.clearDirty();
                 if (file.delete()) {
+                    storageData.clearDirty();
                     deletedCount++;
                 }
             }

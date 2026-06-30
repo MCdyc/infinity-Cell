@@ -31,8 +31,8 @@ src/main/java/com/mcdyc/infinitycell/
 │   └── InfiniteCellInventory.java # 无限容量盘实现
 └── mixin/
     ├── MixinLoader.java           # Mixin 加载器
-    ├── MixinJEICellCategory.java  # JEI 排序溢出修复
-    └── MixinJEICellCategoryDisplay.java  # JEI 显示修复
+    ├── InfinityCellMixinPlugin.java # 按可选依赖动态启用 Mixin
+    └── MixinNAEJEIPlugin.java     # 禁用 NAE2 对本模组元件的旧 JEI 预览
 ```
 
 ---
@@ -141,7 +141,7 @@ if (playerIn.isSneaking() && cellInv.getUsedBytes() == 0) {
 │   (有限容量盘)        │         │   (无限容量盘)        │
 │                     │         │                     │
 │ • 容量上限检查       │         │ • 无容量检查          │
-│ • 字节换算          │         │ • 1 item = 1 byte    │
+│ • AE2单位/字节换算  │         │ • 1 unit = 1 byte    │
 │ • 状态灯(绿/橙/红)   │         │ • 状态灯(蓝/绿)       │
 └──────────┬──────────┘         └──────────┬──────────┘
            │                               │
@@ -241,7 +241,7 @@ public T injectItems(T input, Actionable type, IActionSource src) {
 **设计原则**：
 1. **无容量上限检查** - 直接接受所有输入
 2. **防溢出保护** - 单种类上限 `Long.MAX_VALUE / 2`
-3. **简化计数** - 1 item = 1 byte（不参与 unitsPerByte 换算）
+3. **简化计数** - 1 unit = 1 byte（不参与通道 `getUnitsPerByte()` 容量换算）
 
 ```java
 private static final long PER_TYPE_MAX = Long.MAX_VALUE / 2;
@@ -276,40 +276,10 @@ public boolean canHoldNewItem() {
 
 ### 3.7 Mixin 修复
 
-#### MixinJEICellCategory - 排序溢出修复
-**问题**：NAE2 使用 `Math.toIntExact(b - a)` 排序，超大数量相减溢出
+#### MixinNAEJEIPlugin - 禁用 NAE2 旧预览
+**问题**：NAE2 的原盘内 JEI 预览路径会按旧元件假设读取本模组元件，且在大 long 数量下存在排序/显示溢出风险。
 
-```java
-@Redirect(method = "setRecipe", at = @At(value = "INVOKE", target = "ArrayList.sort"))
-private void fixIntegerOverflowSort(ArrayList<IAEStack<?>> instance, Comparator<?> original) {
-    // 使用 Long.compare 替代 int 减法
-    instance.sort((a, b) -> Long.compare(b.getStackSize(), a.getStackSize()));
-}
-```
-
-#### MixinJEICellCategoryDisplay - 显示修复
-**问题1**：NAE2 JEI tooltip 显示错误的字节数
-
-```java
-@Inject(method = "getCallBack", at = @At("RETURN"))
-private void wrapCallbackForInfiniteCell(...) {
-    // 移除错误的 "used" 行
-    tooltip.remove(tooltip.size() - 1);
-    // 添加正确的字节数 (stackSize * 1)
-    tooltip.add(format("used", stackSize));
-}
-```
-
-**问题2**：容量条显示错误
-
-```java
-@WrapOperation(method = "drawExtras", at = @At(value = "INVOKE", target = "getRemainingItemCount"))
-private long wrapGetRemainingItemCount(ICellInventory<?> instance) {
-    if (instance instanceof InfiniteCellInventory<?>) {
-        return DISPLAY_BYTES - instance.getStoredItemCount();
-    }
-}
-```
+当前策略不是修补 NAE2 的旧 Category，而是在 NAE2 存在时通过 `InfinityCellMixinPlugin` 动态加载 `MixinNAEJEIPlugin`，对本模组 `AdvancedCellItem` 返回空 NAE2 预览结果。本模组自己的 `InfinityCellCategory` 负责展示受限快照，服务端每次最多返回 63 项。
 
 ---
 
@@ -383,8 +353,8 @@ private long wrapGetRemainingItemCount(ICellInventory<?> instance) {
 | AdvancedCellInventory.java         | ~176 | 有限盘实现   |
 | InfiniteCellInventory.java         | ~130 | 无限盘实现   |
 | MixinLoader.java                   | ~13  | Mixin 加载   |
-| MixinJEICellCategory.java          | ~27  | JEI 排序修复 |
-| MixinJEICellCategoryDisplay.java   | ~128 | JEI 显示修复 |
+| InfinityCellMixinPlugin.java       | ~58  | 动态启用可选 Mixin |
+| MixinNAEJEIPlugin.java             | ~55  | 禁用 NAE2 旧预览 |
 
 ### 资源文件
 - `mcmod.info` - 模组元数据

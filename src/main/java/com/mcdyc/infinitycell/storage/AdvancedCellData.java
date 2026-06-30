@@ -50,15 +50,21 @@ public class AdvancedCellData extends WorldSavedData
          */
         public void modify(T stack, long deltaCount, long deltaBytes, long deltaTypes)
         {
-            long currentCount = counts.getLong(stack);
-            long newCount = currentCount + deltaCount;
+            if (stack == null || (deltaCount == 0L && deltaBytes == 0L && deltaTypes == 0L)) {
+                return;
+            }
+
+            T storedKey = counts.containsKey(stack) ? stack : getStoredKey(stack);
+            T key = storedKey != null ? storedKey : stack.copy();
+            long currentCount = storedKey != null ? counts.getLong(storedKey) : 0L;
+            long newCount = StorageChannelUtil.safeAdd(currentCount, deltaCount);
             if (newCount <= 0) {
-                counts.removeLong(stack);
-                nbtCache.remove(stack); // 被抽干了，从缓存里杀掉
-                dirtyItems.remove(stack);
+                counts.removeLong(key);
+                nbtCache.remove(key); // 被抽干了，从缓存里杀掉
+                dirtyItems.remove(key);
             } else {
-                counts.put(stack, newCount);
-                dirtyItems.add(stack);  // 标记为脏数据，等待下一次落盘时只序列化它
+                counts.put(key, newCount);
+                dirtyItems.add(key);  // 标记为脏数据，等待下一次落盘时只序列化它
             }
 
             // 模拟 int128：双 long 加减法计算总物品数
@@ -71,7 +77,7 @@ public class AdvancedCellData extends WorldSavedData
                     this.totalItemCount += deltaCount;
                 }
             } else if (deltaCount < 0) {
-                long absDelta = -deltaCount;
+                long absDelta = deltaCount == Long.MIN_VALUE ? Long.MAX_VALUE : -deltaCount;
                 if (this.totalItemCount < absDelta) {
                     if (this.totalItemCountOverflow > 0) {
                         this.totalItemCountOverflow--;
@@ -94,7 +100,7 @@ public class AdvancedCellData extends WorldSavedData
                     this.totalBytes += deltaBytes;
                 }
             } else if (deltaBytes < 0) {
-                long absDelta = -deltaBytes;
+                long absDelta = deltaBytes == Long.MIN_VALUE ? Long.MAX_VALUE : -deltaBytes;
                 if (this.totalBytes < absDelta) {
                     if (this.totalBytesOverflow > 0) {
                         this.totalBytesOverflow--;
@@ -107,7 +113,22 @@ public class AdvancedCellData extends WorldSavedData
                 }
             }
 
-            this.totalTypes += deltaTypes;
+            this.totalTypes = counts.size();
+        }
+
+        /**
+         * FastUtil uses equals/hashCode lookup, but AE stack implementations can
+         * carry mutable stack sizes. Reusing the canonical key already present in
+         * counts keeps counts, NBT cache and dirty set aligned.
+         */
+        private T getStoredKey(T stack)
+        {
+            for (T key : counts.keySet()) {
+                if (key.equals(stack)) {
+                    return key;
+                }
+            }
+            return null;
         }
 
         /**
@@ -138,6 +159,9 @@ public class AdvancedCellData extends WorldSavedData
             List<T> out = new ArrayList<>(Math.min(Math.max(max, 0), 64));
             if (max <= 0) return out;
             for (Object2LongMap.Entry<T> entry : counts.object2LongEntrySet()) {
+                if (entry.getLongValue() <= 0L) {
+                    continue;
+                }
                 T copy = entry.getKey().copy();
                 copy.setStackSize(entry.getLongValue());
                 out.add(copy);
@@ -153,6 +177,12 @@ public class AdvancedCellData extends WorldSavedData
             return counts.size();
         }
 
+        public long getStoredAmount(T stack)
+        {
+            T storedKey = counts.containsKey(stack) ? stack : getStoredKey(stack);
+            return storedKey == null ? 0L : counts.getLong(storedKey);
+        }
+
         /**
          * 增量计算当前频道的所有 NBT 列表。
          * 采用只对本tick被打上脏标记（发生过变动）的那小撮物品做 NBT 序列化，其余的从缓存列表直出的机制，
@@ -165,6 +195,9 @@ public class AdvancedCellData extends WorldSavedData
             if (isFullDirty) {
                 nbtCache.clear();
                 for (Object2LongMap.Entry<T> entry : counts.object2LongEntrySet()) {
+                    if (entry.getLongValue() <= 0L) {
+                        continue;
+                    }
                     NBTTagCompound itemTag = new NBTTagCompound();
                     entry.getKey().writeToNBT(itemTag);
                     itemTag.setLong("CountLimitless", entry.getLongValue());
@@ -175,9 +208,14 @@ public class AdvancedCellData extends WorldSavedData
             } else if (!dirtyItems.isEmpty()) {
                 // 仅对发生变动的这几样物品重新序列化
                 for (T dirtyItem : dirtyItems) {
+                    long count = counts.getLong(dirtyItem);
+                    if (count <= 0L) {
+                        nbtCache.remove(dirtyItem);
+                        continue;
+                    }
                     NBTTagCompound itemTag = new NBTTagCompound();
                     dirtyItem.writeToNBT(itemTag);
-                    itemTag.setLong("CountLimitless", counts.getLong(dirtyItem));
+                    itemTag.setLong("CountLimitless", count);
                     nbtCache.put(dirtyItem, itemTag);
                 }
                 dirtyItems.clear();
@@ -187,6 +225,7 @@ public class AdvancedCellData extends WorldSavedData
             for (NBTTagCompound tag : nbtCache.values()) {
                 itemsNbt.appendTag(tag);
             }
+            totalTypes = counts.size();
             return itemsNbt;
         }
     }
@@ -226,7 +265,7 @@ public class AdvancedCellData extends WorldSavedData
     {
         if (channels.isEmpty()) return true;
         for (ChannelData<?> data : channels.values()) {
-            if (data.totalItemCount > 0 || data.totalItemCountOverflow > 0) return false;
+            if (!data.counts.isEmpty() || data.totalItemCount > 0 || data.totalItemCountOverflow > 0) return false;
         }
         return true;
     }
@@ -304,11 +343,11 @@ public class AdvancedCellData extends WorldSavedData
     private <T extends IAEStack<T>> void readChannelData(IStorageChannel<T> channel, NBTTagCompound channelNbt)
     {
         ChannelData<T> data = getChannelData(channel);
-        data.totalBytes = channelNbt.getLong("TotalBytes");
-        data.totalBytesOverflow = channelNbt.getLong("TotalBytesOverflow");
-        data.totalTypes = channelNbt.getLong("TotalTypes");
-        data.totalItemCount = channelNbt.getLong("TotalItemCount");
-        data.totalItemCountOverflow = channelNbt.getLong("TotalItemCountOverflow");
+        data.totalBytes = Math.max(0L, channelNbt.getLong("TotalBytes"));
+        data.totalBytesOverflow = Math.max(0L, channelNbt.getLong("TotalBytesOverflow"));
+        data.totalTypes = Math.max(0L, channelNbt.getLong("TotalTypes"));
+        data.totalItemCount = Math.max(0L, channelNbt.getLong("TotalItemCount"));
+        data.totalItemCountOverflow = Math.max(0L, channelNbt.getLong("TotalItemCountOverflow"));
 
         // 读取完毕后，下达全局脏指令，让缓存和真实计数器同步
         data.isFullDirty = true;
@@ -319,8 +358,11 @@ public class AdvancedCellData extends WorldSavedData
             T stack = channel.createFromNBT(itemTag);
             if (stack != null) {
                 long count = itemTag.getLong("CountLimitless");
-                data.counts.put(stack, count);
+                if (count > 0L) {
+                    data.counts.put(stack, count);
+                }
             }
         }
+        data.totalTypes = data.counts.size();
     }
 }

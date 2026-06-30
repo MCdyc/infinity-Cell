@@ -4,24 +4,18 @@ import appeng.api.AEApi;
 import appeng.api.implementations.items.IStorageCell;
 import appeng.api.storage.ICellInventory;
 import appeng.api.storage.IStorageChannel;
-import appeng.api.storage.channels.IFluidStorageChannel;
-import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEStack;
-import appeng.api.storage.data.IItemList;
 import appeng.client.render.StackSizeRenderer;
 import appeng.fluids.client.render.FluidStackSizeRenderer;
-import appeng.util.Platform;
 import com.mcdyc.infinitycell.InfinityCell;
 import com.mcdyc.infinitycell.item.AdvancedCellItem;
 import com.mcdyc.infinitycell.network.CellDataCache;
+import com.mcdyc.infinitycell.storage.StorageChannelUtil;
 
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import mezz.jei.Internal;
 import mezz.jei.api.IJeiHelpers;
 import mezz.jei.api.gui.IDrawable;
 import mezz.jei.api.gui.IDrawableStatic;
 import mezz.jei.api.gui.IRecipeLayout;
-import mezz.jei.api.gui.ITooltipCallback;
 import mezz.jei.api.ingredients.IIngredients;
 import mezz.jei.api.recipe.IRecipeCategory;
 import net.minecraft.client.Minecraft;
@@ -34,7 +28,6 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.awt.*;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -134,34 +127,12 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
             // 使用缓存数据先渲染，等新数据到达后会自动刷新
             setupRecipeFromCache(recipeLayout, recipeWrapper, this.cachedCellData);
         } else {
-            // 没有缓存数据，尝试从本地获取（可能是在单人游戏中）
+            // 没有缓存数据时只用本地 NBT 统计兜底，不在客户端代理上读取完整列表。
             this.cellInfo = getCellInfo(stack);
-            if (this.cellInfo != null) {
-                // 检查是否能获取到物品列表
-                List<IAEStack<?>> testList = new ArrayList<>();
-                for (Object s : getAvailableItems(this.cellInfo)) {
-                    if (s instanceof IAEStack) {
-                        testList.add((IAEStack) s);
-                    }
-                }
-                if (!testList.isEmpty()) {
-                    // 本地有数据，直接使用
-                    setupRecipeFromCellInfo(recipeLayout, recipeWrapper, testList);
-                } else {
-                    // 本地也没有数据，请求网络数据
-                    this.isLoading = hasDiskUuid;
-                    this.loadingStartTime = System.currentTimeMillis();
-                    if (hasDiskUuid) {
-                        CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
-                    }
-                }
-            } else {
-                // 无法获取 CellInfo，请求网络数据
-                this.isLoading = hasDiskUuid;
-                this.loadingStartTime = System.currentTimeMillis();
-                if (hasDiskUuid) {
-                    CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
-                }
+            this.isLoading = hasDiskUuid;
+            this.loadingStartTime = System.currentTimeMillis();
+            if (hasDiskUuid) {
+                CellDataCache.getInstance().requestData(stack, MAX_ITEMS_TO_REQUEST);
             }
         }
     }
@@ -231,59 +202,13 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
         updateJeiSlots(this.currentUiStacks);
         this.currentRecipeWrapper.setExtendedStacks(this.currentUiStacks);
     }
-    /**
-     * 从 CellInfo 设置配方显示
-     */
-    private void setupRecipeFromCellInfo(IRecipeLayout recipeLayout, InfinityCellCategoryRecipe recipeWrapper,
-                                            List<IAEStack<?>> storedStacks)
-    {
-        storedStacks.sort((a, b) -> Long.compare(b.getStackSize(), a.getStackSize()));
-
-        int totalTypes = (int) Math.min(this.cellInfo.cellInv.getStoredItemTypes(), (long) MAX_ITEMS_TO_REQUEST);
-        int gridWidth = Math.min(9, totalTypes);
-        int gridStartY = TOTAL_HEIGHT - GRID_HEIGHT;
-        int gridStartX = WIDTH / 2 - gridWidth * 18 / 2;
-
-        NumberFormat format = NumberFormat.getInstance();
-        int transferFactor = this.getTransferFactor();
-        String unitName = I18n.format("infinitycell.jei.cellview." + getStorageChannelUnits(this.cellInfo.channel));
-
-        Iterator<IAEStack<?>> iter = storedStacks.iterator();
-        List<ExtendedStackInfo> uiStacks = new ArrayList<>();
-
-        for (int i = 0; i < totalTypes; i++) {
-            int posX = gridStartX + (CELL_SIZE * (i % 9));
-            int posY = gridStartY + (CELL_SIZE * (i / 9));
-
-            if (iter.hasNext()) {
-                IAEStack<?> aeStack = iter.next();
-                List<String> extraTooltip = new ArrayList<>();
-                long stackSize = aeStack.getStackSize();
-                extraTooltip.add(I18n.format("infinitycell.jei.cellview.hover.stored", formatLongDivision(format, stackSize, transferFactor), unitName));
-                extraTooltip.add(I18n.format("infinitycell.jei.cellview.used", format.format(this.cellInfo.cellInv.getBytesPerType() + (stackSize + this.cellInfo.channel.getUnitsPerByte() - 1) / this.cellInfo.channel.getUnitsPerByte())));
-
-                uiStacks.add(new ExtendedStackInfo(aeStack, posX, posY, extraTooltip));
-            }
-        }
-        this.currentUiStacks.clear();
-        this.currentUiStacks.addAll(uiStacks);
-        updateJeiSlots(this.currentUiStacks);
-        this.currentRecipeWrapper.setExtendedStacks(this.currentUiStacks);
-    }
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static IItemList<?> getAvailableItems(CellInfo cellInfo)
-    {
-        ICellInventory cellInv = cellInfo.cellInv;
-        IStorageChannel channel = cellInfo.channel;
-        return cellInv.getAvailableItems(channel.createList());
-    }
     private static String getStorageChannelUnits(IStorageChannel<?> storageChannel)
     {
-        if (storageChannel instanceof IItemStorageChannel) {
+        if (StorageChannelUtil.isItemChannel(storageChannel)) {
             return "items";
-        } else if (storageChannel instanceof IFluidStorageChannel) {
+        } else if (StorageChannelUtil.isFluidChannel(storageChannel)) {
             return "buckets";
-        } else if (Platform.isModLoaded("mekeng") && storageChannel.getClass().getName().contains("IGasStorageChannel")) {
+        } else if (StorageChannelUtil.isGasChannel(storageChannel)) {
             return "buckets";
         } else {
             return "units";
@@ -408,13 +333,14 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
                 if (this.cachedCellData.getTotalBytes() > Integer.MAX_VALUE / 2) {
                     capacity = Long.MAX_VALUE / Math.max(transferFactor, 1);
                 } else {
-                    // 深度盘: 1 byte = 1 桶 (流体/气体), 1 byte = 8 物品 (物品)
+                    // Deep cells use the AE2 channel units-per-byte value.
                     // 无限盘: 在上面已被 Inf 处理
                     long totalBytes = this.cachedCellData.getTotalBytes();
-                    capacity = totalBytes * getCapacityMultiplierForCurrentCell();
+                    capacity = StorageChannelUtil.safeMultiply(totalBytes, getUnitsPerByteForCurrentCell()) / Math.max(transferFactor, 1);
                 }
             } else {
-                capacity = (this.cellInfo.cellInv.getRemainingItemCount() + storedItemCount) / transferFactor;
+                capacity = StorageChannelUtil.safeAdd(this.cellInfo.cellInv.getRemainingItemCount(), storedItemCount)
+                        / transferFactor;
             }
 
             String formattedCapacity = format.format(capacity);
@@ -429,8 +355,10 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
             if (this.cachedCellData != null) {
                 byteLoss = 0; // 我们的元件没有每类型字节损耗
             } else if (this.cellInfo != null) {
-                byteLoss = this.cellInfo.cellInv.getBytesPerType() * this.cellInfo.cellInv.getStoredItemTypes();
-                capacityLoss = byteLoss * this.cellInfo.channel.getUnitsPerByte() / transferFactor;
+                byteLoss = StorageChannelUtil.safeMultiply(this.cellInfo.cellInv.getBytesPerType(),
+                        this.cellInfo.cellInv.getStoredItemTypes());
+                capacityLoss = StorageChannelUtil.safeMultiply(byteLoss, StorageChannelUtil.unitsPerByte(this.cellInfo.channel))
+                        / transferFactor;
             }
 
             minecraft.fontRenderer.drawString(I18n.format("infinitycell.jei.cellview.stored", formatLongDivision(format, storedItemCount, transferFactor), formattedCapacity, unitName), offset, offset, 0x000000);
@@ -486,42 +414,18 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
     }
 
     /**
-     * 根据当前元件的类型和等级计算转换因子：
-     * - 物品：永远 1:1
-     * - 流体/气体（无限盘 INF）：1:1
-     * - 流体/气体（深度盘 非INF）：1:1000 (mB -> 桶)
+     * Uses the AE2 channel transfer factor for display units:
+     * item = items, fluid = buckets, MekEng gas = gas buckets.
      */
     private int getTransferFactorForCurrentCell() {
         if (this.currentCellStack != null && this.currentCellStack.getItem() instanceof AdvancedCellItem) {
             AdvancedCellItem cell = (AdvancedCellItem) this.currentCellStack.getItem();
-            if (cell.type == AdvancedCellItem.StorageType.ITEM) {
-                return 1;
-            }
-            // 流体/气体
-            if (cell.tier == AdvancedCellItem.StorageTier.INF) {
-                return 1; // 无限盘: 1:1
-            } else {
-                return 1000; // 深度盘: 1:1000
+            appeng.api.storage.IStorageChannel<?> channel = cell.getChannel();
+            if (channel != null) {
+                return Math.max(1, channel.transferFactor());
             }
         }
         return 1;
-    }
-
-    /**
-     * 容量乘数：totalBytes * multiplier = 显示容量
-     * - 物品盘: 1 byte = 1 物品 (multiplier = 1)
-     * - 流体深度盘: 1 byte = 1 桶 (multiplier = 1)
-     * - 气体深度盘: 1 byte = 4 桶 (multiplier = 4)
-     * - 无限盘: Inf (不经过此计算)
-     */
-    private int getCapacityMultiplierForCurrentCell() {
-        if (this.currentCellStack != null && this.currentCellStack.getItem() instanceof AdvancedCellItem) {
-            AdvancedCellItem cell = (AdvancedCellItem) this.currentCellStack.getItem();
-            if (cell.type == AdvancedCellItem.StorageType.GAS && cell.tier != AdvancedCellItem.StorageTier.INF) {
-                return 4; // 气体深度盘: 1 byte = 4 桶
-            }
-        }
-        return 1; // 默认: 1 byte = 1 单位
     }
 
     /**
@@ -569,12 +473,12 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
     /**
      * 获取当前元件通道的每字节存储单位数
      */
-    private int getUnitsPerByteForCurrentCell() {
+    private long getUnitsPerByteForCurrentCell() {
         if (this.currentCellStack != null && this.currentCellStack.getItem() instanceof AdvancedCellItem) {
             AdvancedCellItem cell = (AdvancedCellItem) this.currentCellStack.getItem();
             appeng.api.storage.IStorageChannel<?> channel = cell.getChannel();
             if (channel != null) {
-                return channel.getUnitsPerByte();
+                return StorageChannelUtil.unitsPerByte(channel);
             }
         }
         return 8; // 默认物品通道
@@ -607,7 +511,7 @@ public class InfinityCellCategory implements IRecipeCategory<InfinityCellCategor
                 }
 
                 if (bytesPerType > 0) {
-                    long byteLoss = bytesPerType * storedItemTypes;
+                    long byteLoss = StorageChannelUtil.safeMultiply(bytesPerType, storedItemTypes);
                     tooltip.add(I18n.format("infinitycell.jei.cellview.hover.2"));
                     tooltip.add("");
                     tooltip.add(I18n.format("infinitycell.jei.cellview.hover.3", format.format(bytesPerType), format.format(storedItemTypes), format.format(byteLoss)));
