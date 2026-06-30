@@ -69,28 +69,12 @@ public class InfinityCell
     @Mod.EventHandler
     public void init(FMLInitializationEvent event)
     {
-        // 注册高级别泛用容量和气体拦截安检门
+        // 注册自定义存储元件处理器。
+        // 用 AE2 公开 API 追加即可：本模组的 isCell 只认 AdvancedCellItem，与内置 BasicCellHandler 完全不相交，
+        // 排在其后不影响拦截；AE2UEL 还会校验 index 0 恒为内置 handler，故无需（也不应）反射插队。
         appeng.api.storage.ICellRegistry cellRegistry = AEApi.instance().registries().cell();
-        try {
-            boolean injected = false;
-            for (java.lang.reflect.Field field : cellRegistry.getClass().getDeclaredFields()) {
-                if (java.util.List.class.isAssignableFrom(field.getType())) {
-                    field.setAccessible(true);
-                    @SuppressWarnings("unchecked")
-                    java.util.List<appeng.api.storage.ICellHandler> handlers = (java.util.List<appeng.api.storage.ICellHandler>) field.get(cellRegistry);
-                    handlers.add(0, new AdvancedCellHandler());
-                    injected = true;
-                    break;
-                }
-            }
-            if (!injected) {
-                cellRegistry.addCellHandler(new AdvancedCellHandler());
-            }
-            LOGGER.info("成功挂载了 Advanced 多阶梯硬盘存取拦截安检门 (Injected)！");
-        } catch (Exception e) {
-            cellRegistry.addCellHandler(new AdvancedCellHandler());
-            LOGGER.error("挂载 Advanced 多阶梯硬盘存取拦截安检门 (Injected) 失败，后备方案注册！", e);
-        }
+        cellRegistry.addCellHandler(new AdvancedCellHandler());
+        LOGGER.info("成功挂载 Advanced 多阶梯硬盘存取拦截安检门！");
     }
 
     /**

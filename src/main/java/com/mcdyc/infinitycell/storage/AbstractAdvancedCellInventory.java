@@ -261,6 +261,29 @@ public abstract class AbstractAdvancedCellInventory<T extends IAEStack<T>>
         return StorageChannelUtil.bytesForAmount(channel, amount);
     }
 
+    /**
+     * 套娃保护：判断 input 是否为一块"不可入盘"的存储元件。
+     *
+     * <p>AE2 原生 {@code BasicCellInventory} 会拒绝把存储元件再塞进存储元件，以防递归存储 / 复制漏洞；
+     * 本模组自实现了 {@code injectItems}，必须显式补上同样的检查。仅物品通道有意义
+     * （流体 / 气体不可能是存储元件）。
+     *
+     * @param input 待存入的资源样板。
+     * @return 若 input 是声明了 {@code storableInStorageCell()==false} 的存储元件则返回 true（应拒绝）。
+     */
+    protected boolean rejectsAsNestedCell(T input)
+    {
+        if (input == null || !input.isItem()) {
+            return false;
+        }
+        ItemStack rep = input.asItemStackRepresentation();
+        if (rep.isEmpty()) {
+            return false;
+        }
+        return rep.getItem() instanceof appeng.api.implementations.items.IStorageCell
+                && !((appeng.api.implementations.items.IStorageCell<?>) rep.getItem()).storableInStorageCell();
+    }
+
     // -------------------------------------------------------------------------
     //  子类必须实现：与容量策略相关的方法
     // -------------------------------------------------------------------------

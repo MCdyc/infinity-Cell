@@ -17,8 +17,10 @@ import net.minecraft.item.ItemStack;
  */
 public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvancedCellInventory<T>
 {
-    // 展示用常量：传给 GUI 的"总容量"，不参与任何乘法运算
-    private static final long DISPLAY_BYTES = Long.MAX_VALUE / 2;
+    // 上报给 AE2/附属的"总容量"哨兵：取远低于 Long.MAX 的有界大数（≈1.13e15），
+    // 留足跨元件求和余量，避免第三方算术溢出（NAE2 JEI 曾因强转 int 而崩）。
+    // 玩家看到的 "Inf" 由 JEI / Tooltip 单独判定，不依赖此真值；PacketReturnCellData 使用同一量级。
+    private static final long DISPLAY_BYTES = 1L << 50;
 
     /**
      * 构建一个无视一切容量和类型约束的真·无限盘存取器。
@@ -53,6 +55,7 @@ public class InfiniteCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     public T injectItems(T input, Actionable type, IActionSource src)
     {
         if (input == null || input.getStackSize() <= 0L) return null;
+        if (rejectsAsNestedCell(input)) return input; // 套娃保护：拒绝把存储元件存进无限盘
 
         AdvancedCellData workingData = type == Actionable.MODULATE ? getDataForMutation() : data;
         AdvancedCellData.ChannelData<T> chanData = workingData == null ? null : workingData.getChannelData(channel);

@@ -68,6 +68,7 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     public T injectItems(T input, Actionable type, IActionSource src)
     {
         if (input == null || input.getStackSize() <= 0L) return null;
+        if (rejectsAsNestedCell(input)) return input; // 套娃保护：拒绝把存储元件存进盘
 
         AdvancedCellData workingData = type == Actionable.MODULATE ? getDataForMutation() : data;
         AdvancedCellData.ChannelData<T> chanData = workingData == null ? null : workingData.getChannelData(channel);
