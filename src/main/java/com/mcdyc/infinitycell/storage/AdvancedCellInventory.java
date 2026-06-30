@@ -9,67 +9,76 @@ import com.mcdyc.infinitycell.item.AdvancedCellItem;
 import net.minecraft.item.ItemStack;
 
 /**
- * 带有阶梯上限校验和高性能读写的通用盘代理器（有限容量盘专用）。
+ * 统一存储元件代理器：一套实现覆盖有限阶层盘 (1K~16384K) 与无限盘 (INF)。
  *
- * <p>公共逻辑（数据加载、提取、样板方法）在 {@link AbstractAdvancedCellInventory} 中实现。
- * 本类只负责容量上限相关的策略：字节上限、种类上限、注入拦截。
+ * <p>差异仅在“容量策略”，由构造期确定的 {@link #infinite} 标志分流：
+ * <ul>
+ *   <li><b>有限档</b>：字节上限 = {@code tier.kb*1024}，注入受字节余量约束，
+ *       状态灯按占用比给绿 / 橙 / 红 / 蓝；</li>
+ *   <li><b>无限档</b>：无字节上限，注入只受单类型存量上限 {@link #PER_TYPE_MAX} 约束，
+ *       对外容量一律上报有界哨兵 {@link #DISPLAY_BYTES}，状态灯只有蓝 / 绿。</li>
+ * </ul>
+ * 所有阶层均不限制物种种类数。公共逻辑（数据加载、提取、样板方法、套娃保护）在
+ * {@link AbstractAdvancedCellInventory} 中实现。
  *
  * @param <T> 存储通道的数据类型
  */
 public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvancedCellInventory<T>
 {
-    // 根据阶层划定的最大总字节数
-    private final long maxBytes;
-    // 根据类型划定的最大物品种类数
-    private final long maxTypes;
-    // 磁盘的物品定义类，用于读取阶层 / 类型信息
+    // 对外上报“无限”时统一使用的有界容量哨兵（远低于 Long.MAX，留足跨元件求和余量）；
+    // 同时用作“不限种类”的种类上限上报值。
+    private static final long DISPLAY_BYTES = 1L << 50;
+
+    // 单一物种的存量上限，防止单类型 stackSize 逼近 long 上限后对外显示异常。
+    private static final long PER_TYPE_MAX = Long.MAX_VALUE / 2;
+
+    private final boolean infinite;
+    private final long maxBytes;   // 有限档的字节上限；无限档不参与注入判定
+    private final long maxTypes;   // “不限种类”的上报值（有界哨兵）
     private final AdvancedCellItem parentItem;
 
     /**
-     * 构建一个有限约束的磁盘库存处理器。
-     * 会在初始化时解析物品自身设定的阶层约束和类型（最大允许占据的字节数上限）。
+     * 构建统一库存处理器，按物品自身的阶层决定走有限还是无限策略。
      *
-     * @param cellItem     表示此存储元件栈的实际物理物品。
-     * @param saveProvider 管理存储状态并将数据同步至服务端持久化机制的服务提供者。
-     * @param channel      此元件映射的数据通道形式（如：物品/流体/气体）。
+     * @param cellItem     实际物理存储元件栈。
+     * @param saveProvider 持久化托管方（驱动器 / ME 接口等）。
+     * @param channel      此元件映射的数据通道（物品 / 流体 / 气体）。
      */
     public AdvancedCellInventory(ItemStack cellItem, ISaveProvider saveProvider, IStorageChannel<T> channel)
     {
         super(cellItem, saveProvider, channel);
 
-        // 解析工厂属性，设置先天容量与类型限制
         if (cellItem.getItem() instanceof AdvancedCellItem) {
             this.parentItem = (AdvancedCellItem) cellItem.getItem();
-            this.maxTypes = Long.MAX_VALUE / 2;  // 所有阶层均不限种类
-            // 原版 1K/4K/16K 等阶梯，换算为真实字节数
-            this.maxBytes = this.parentItem.tier.kb * 1024L;
+            this.infinite = parentItem.tier == AdvancedCellItem.StorageTier.INF;
+            this.maxTypes = DISPLAY_BYTES;                                  // 所有阶层均不限种类
+            this.maxBytes = infinite ? DISPLAY_BYTES : parentItem.tier.kb * 1024L; // 原版 1K/4K... 换算字节
         } else {
-            // 安全回退（非常规手段唤醒时）
+            // 安全回退（非常规手段唤醒时）：按无限盘处理，照单全收
             this.parentItem = null;
-            this.maxBytes = Long.MAX_VALUE / 2;
-            this.maxTypes = Long.MAX_VALUE / 2;
+            this.infinite = true;
+            this.maxBytes = DISPLAY_BYTES;
+            this.maxTypes = DISPLAY_BYTES;
         }
     }
 
     // -------------------------------------------------------------------------
-    //  注入逻辑：带容量上限拦截
+    //  注入逻辑：套娃保护后按“无限 / 有限”分流
     // -------------------------------------------------------------------------
 
-    /**
-     * 向该有限盘注入物品的拦截与处理逻辑。
-     * 会同时检查种类上限和字节占用余量（剩余空间），剩余空间不足时会发生截断退回。
-     *
-     * @param input 即将存入系统的对象引用样例及数量。
-     * @param type  指明此操作为模拟探测（SIMULATE）或是真实写入（MODULATE）。
-     * @param src   指明触发写入的源头。
-     * @return 那些塞不下而被退绝返回的物品栈，如果全部消化完毕则为 null。
-     */
     @Override
     public T injectItems(T input, Actionable type, IActionSource src)
     {
         if (input == null || input.getStackSize() <= 0L) return null;
         if (rejectsAsNestedCell(input)) return input; // 套娃保护：拒绝把存储元件存进盘
+        return infinite ? injectInfinite(input, type, src) : injectFinite(input, type, src);
+    }
 
+    /**
+     * 无限档注入：无字节上限，仅按单类型存量上限拦截，其余照单全收。
+     */
+    private T injectInfinite(T input, Actionable type, IActionSource src)
+    {
         AdvancedCellData workingData = type == Actionable.MODULATE ? getDataForMutation() : data;
         AdvancedCellData.ChannelData<T> chanData = workingData == null ? null : workingData.getChannelData(channel);
         if (type == Actionable.MODULATE && chanData == null) {
@@ -79,7 +88,47 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
         long currentCount = chanData == null ? 0L : chanData.getStoredAmount(input);
         boolean isNewType = currentCount == 0;
 
-        // 种类上限拦截
+        // 单种物品上限拦截：避免单个种类逼近 long 上限
+        if (currentCount >= PER_TYPE_MAX) {
+            return input; // 该种类已达上限，整批拒绝
+        }
+
+        long count = input.getStackSize();
+        long canAdd = StorageChannelUtil.safePositiveSubtract(PER_TYPE_MAX, currentCount); // 还能追加多少
+        long actualAdd = Math.min(count, canAdd);
+        if (actualAdd <= 0L) {
+            return input;
+        }
+
+        // 无限盘 1 stored unit = 1 byte（纯 1:1 计数，仅用于 totalBytes 统计）
+        if (type == Actionable.MODULATE) {
+            chanData.modify(input, actualAdd, actualAdd, isNewType ? 1 : 0);
+            saveChanges();
+        }
+
+        if (actualAdd < count) {
+            T rejected = input.copy();
+            rejected.setStackSize(count - actualAdd);
+            return rejected;
+        }
+        return null;
+    }
+
+    /**
+     * 有限档注入：同时受单类型存量与字节余量约束，余量不足时截断退回。
+     */
+    private T injectFinite(T input, Actionable type, IActionSource src)
+    {
+        AdvancedCellData workingData = type == Actionable.MODULATE ? getDataForMutation() : data;
+        AdvancedCellData.ChannelData<T> chanData = workingData == null ? null : workingData.getChannelData(channel);
+        if (type == Actionable.MODULATE && chanData == null) {
+            return input;
+        }
+
+        long currentCount = chanData == null ? 0L : chanData.getStoredAmount(input);
+        boolean isNewType = currentCount == 0;
+
+        // 种类上限拦截（实际不限种类，maxTypes 为有界哨兵）
         if (isNewType && chanData != null && chanData.typeCount() >= maxTypes) {
             return input;
         }
@@ -122,91 +171,84 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     }
 
     // -------------------------------------------------------------------------
-    //  容量信息
+    //  容量信息：按“无限 / 有限”分流
     // -------------------------------------------------------------------------
 
-    /**
-     * 获取总容量字节数。
-     * @return 本元件设定的容量天花板。
-     */
     @Override
     public long getTotalBytes()
     {
-        return maxBytes;
+        return infinite ? DISPLAY_BYTES : maxBytes;
     }
 
-    /**
-     * 获取剩余的可用字节数。
-     * @return 最大受限容量扣除已用字节数之差，确保返回不小于0的数据。
-     */
     @Override
     public long getFreeBytes()
     {
-        return StorageChannelUtil.safePositiveSubtract(maxBytes, getUsedBytes());
+        // 无限盘永不报告负余量；有限盘 = 上限 - 已用。
+        return infinite ? DISPLAY_BYTES : StorageChannelUtil.safePositiveSubtract(maxBytes, getUsedBytes());
     }
 
-    /**
-     * 获取最大许可的存入种类数。
-     * @return 63 种（如果是传统的 1K-64K 物品盘）。在我们的系统里所有有限盘都不限制种类。
-     */
     @Override
     public long getTotalItemTypes()
     {
-        return maxTypes;
+        return maxTypes; // 有界哨兵，所有档均“不限种类”
     }
 
-    /**
-     * 盘内仍然可容纳的新独立种类数量。
-     * @return 种类容量天花板与当前已存种子的差。
-     */
     @Override
     public long getRemainingItemTypes()
     {
-        return Math.max(0, getTotalItemTypes() - getStoredItemTypes());
+        return infinite ? DISPLAY_BYTES : Math.max(0, getTotalItemTypes() - getStoredItemTypes());
     }
 
-    /**
-     * 根据当前通道的转换密度，该盘所能塞进的具体基础元件（物品数/流体mB数）。
-     * @return 估算的系统最高上限可容纳数目。
-     */
     @Override
     public long getRemainingItemCount()
     {
-        return StorageChannelUtil.safeMultiply(getFreeBytes(), getUnPerByte());
+        // 无限盘返回定值（永不满载，避免被伪满容量卡住）；有限盘按剩余字节换算。
+        return infinite ? DISPLAY_BYTES : StorageChannelUtil.safeMultiply(getFreeBytes(), getUnPerByte());
     }
 
-    /**
-     * 原生旧版兼容接口：获取剩余空位个数（向下兼容到 int）。
-     * @return 被强制降级到不超过 Integer.MAX_VALUE 的物品容量空位。
-     */
     @Override
     public int getUnusedItemCount()
     {
+        if (infinite) return Integer.MAX_VALUE;
         long remain = getRemainingItemCount();
         return remain > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remain;
     }
 
-    /**
-     * 在客户端试图执行拖拽预判验证时调用的简易检查。
-     * @return 若该元件不论是从种类还是从字节容纳来说，都没有被塞满，则反馈 {@code true}。
-     */
     @Override
     public boolean canHoldNewItem()
     {
+        if (infinite) return true;
         if (data == null) return true;
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
         return chanData.typeCount() < maxTypes && chanData.totalBytes < maxBytes;
     }
 
     /**
-     * 主导硬盘被插在 ME 驱动器上时外面三色指示灯的信号。
-     * @return 1=纯绿（正常），2=橙色（逼近75%满载告警），3=红色（数据写满被阻截），4=淡蓝色（完全空）。
+     * 无限盘字节按 1:1 计数（覆盖基类的按通道密度换算），保证提取时回退统计与注入一致；
+     * 有限盘沿用基类的真实字节换算。
+     */
+    @Override
+    protected long getBytesForStoredAmount(long amount)
+    {
+        if (infinite) {
+            return Math.max(0, amount);
+        }
+        return super.getBytesForStoredAmount(amount);
+    }
+
+    /**
+     * 驱动器三色指示灯。
+     * 无限盘：4=空(蓝)、1=有货(绿)，永不橙 / 红。
+     * 有限盘：1=绿、2=橙(≥75%)、3=红(满)、4=蓝(空)。
      */
     @Override
     public int getStatusForCell()
     {
         if (data == null) return 4;
         AdvancedCellData.ChannelData<T> chanData = data.getChannelData(channel);
+        if (infinite) {
+            return chanData.totalBytes == 0 ? 4 : 1;
+        }
         if (chanData.totalBytes >= maxBytes) {
             return 3; // 红色 - 已满
         } else if (chanData.totalBytes == 0) {
@@ -222,8 +264,8 @@ public class AdvancedCellInventory<T extends IAEStack<T>> extends AbstractAdvanc
     // -------------------------------------------------------------------------
 
     /**
-     * 多少个物品/mB 算一个 Byte（换算密度，不是容量）。
-     * 普通盘按通道类型区分，无限盘走 {@link InfiniteCellInventory} 不调用此方法。
+     * 多少个物品 / mB 算一个 Byte（换算密度，不是容量），按通道类型区分。
+     * 无限盘走 1:1 计数，不调用此方法。
      */
     private long getUnPerByte()
     {

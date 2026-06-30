@@ -48,10 +48,7 @@ public class AdvancedCellHandler extends appeng.core.features.registries.cell.Ba
         // 防止不同通道互相接管，气体通道必须显式实现 MekEng 的 IGasStorageChannel。
         if (!StorageChannelUtil.matchesCellType(cell.type, channel)) return null;
 
-        // INF 阶层使用独立的无限盘实现（无容量算术，零溢出风险）
-        if (cell.tier == AdvancedCellItem.StorageTier.INF) {
-            return new InfiniteCellInventory<>(is, host, channel);
-        }
+        // 统一实现：AdvancedCellInventory 内部按 INF / 有限阶层自行分流容量策略。
         return new AdvancedCellInventory<>(is, host, channel);
     }
 

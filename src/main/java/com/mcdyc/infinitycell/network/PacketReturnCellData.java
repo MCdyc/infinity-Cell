@@ -262,7 +262,7 @@ public class PacketReturnCellData implements IMessage {
 
     /**
      * 从元件物品本身推算总容量字节数，无需实例化 inventory。
-     * - 无限盘 (INF)：{@code 1L << 50}（对齐 InfiniteCellInventory.DISPLAY_BYTES，客户端据此渲染 "Inf"）。
+     * - 无限盘 (INF)：{@code 1L << 50}（对齐 AdvancedCellInventory.DISPLAY_BYTES，客户端据此渲染 "Inf"）。
      * - 有限盘：{@code tier.kb * 1024}（对齐 AdvancedCellInventory，与通道类型无关）。
      */
     private static long totalBytesForCell(AdvancedCellItem cellItem) {
