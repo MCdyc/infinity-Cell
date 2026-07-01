@@ -32,7 +32,10 @@ import java.util.List;
  * <ul>
  *   <li>{@code list}：列出所有后端文件及其内容摘要；</li>
  *   <li>{@code recover <uuid>}：把指定 UUID 的数据召回为一块无限盘交给玩家；</li>
- *   <li>{@code clean}：仅删除内容为空的孤儿文件（保守清理，绝不碰有内容的文件）。</li>
+ *   <li>{@code clean}：仅删除内容为空的孤儿文件（保守清理，绝不碰有内容的文件）；</li>
+ *   <li>{@code migrate}：把旧格式（预优化时期、含 {@code *Overflow} 双 long 溢出寄存器）的后端
+ *       批量以新格式回写，清掉遗留键并打上 {@code FormatVersion}。读取路径本就向后兼容，
+ *       此命令只是把惰性迁移改为一次性主动完成，幂等（已是新格式的文件跳过）。</li>
  * </ul>
  */
 public class CommandInfinityCell extends CommandBase {
@@ -44,7 +47,7 @@ public class CommandInfinityCell extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/infinitycell <list|recover <uuid>|clean>";
+        return "/infinitycell <list|recover <uuid>|clean|migrate>";
     }
 
     @Override
@@ -70,6 +73,9 @@ public class CommandInfinityCell extends CommandBase {
             case "clean":
                 doClean(sender);
                 break;
+            case "migrate":
+                doMigrate(sender);
+                break;
             default:
                 throw new WrongUsageException(getUsage(sender));
         }
@@ -78,7 +84,7 @@ public class CommandInfinityCell extends CommandBase {
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, @Nullable BlockPos targetPos) {
         if (args.length == 1) {
-            return getListOfStringsMatchingLastWord(args, "list", "recover", "clean");
+            return getListOfStringsMatchingLastWord(args, "list", "recover", "clean", "migrate");
         }
         return Collections.emptyList();
     }
@@ -193,5 +199,59 @@ public class CommandInfinityCell extends CommandBase {
         }
         sender.sendMessage(new TextComponentString(
                 "Cleaned " + deleted + " empty backend file(s) out of " + files.length + "."));
+    }
+
+    /**
+     * 批量把旧格式后端以新格式回写。读取路径本就把旧的 {@code *Overflow} 溢出寄存器折叠为饱和值，
+     * 所以此处只需：加载 → 判定 {@link AdvancedCellData#needsMigration()} → 打脏 → 统一 saveAllData 落盘。
+     * 回写时 {@link AdvancedCellData#writeToNBT} 不再写旧键并补上 {@code FormatVersion}，遗留键随之清除。
+     * 空档不动（交给 {@code clean}），已是新格式的文件跳过——命令幂等。
+     */
+    private void doMigrate(ICommandSender sender) {
+        File dir = infiniteDir();
+        if (dir == null || !dir.isDirectory()) {
+            sender.sendMessage(new TextComponentString("No infinite cell data found."));
+            return;
+        }
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".dat"));
+        if (files == null || files.length == 0) {
+            sender.sendMessage(new TextComponentString("No infinite cell data files found."));
+            return;
+        }
+        World overworld = DimensionManager.getWorld(0);
+        if (overworld == null) {
+            sender.sendMessage(new TextComponentString("Overworld not loaded; cannot migrate."));
+            return;
+        }
+
+        int migrated = 0, current = 0, empty = 0, skipped = 0;
+        for (File f : files) {
+            if (!f.isFile()) {
+                continue;
+            }
+            String uuid = f.getName().substring(0, f.getName().length() - 4);
+            AdvancedCellData data = AdvancedCellData.loadByUuid(uuid);
+            if (data == null) {
+                skipped++;
+                continue;
+            }
+            if (data.isEmpty()) {
+                empty++;               // 空档不迁移，避免又生成幽灵文件；交给 clean
+                continue;
+            }
+            if (data.needsMigration()) {
+                data.markDirty();      // 打脏，稍后一次性回写为新格式
+                migrated++;
+            } else {
+                current++;
+            }
+        }
+        if (migrated > 0) {
+            overworld.getMapStorage().saveAllData();  // 把刚打脏的旧档统一以新格式落盘
+        }
+        sender.sendMessage(new TextComponentString(
+                "Migration complete: " + migrated + " upgraded, " + current + " already current, "
+                        + empty + " empty (use /infinitycell clean)"
+                        + (skipped > 0 ? ", " + skipped + " unreadable" : "") + "."));
     }
 }

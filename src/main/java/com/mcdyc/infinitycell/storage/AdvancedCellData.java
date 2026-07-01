@@ -176,11 +176,33 @@ public class AdvancedCellData extends WorldSavedData
         }
     }
 
+    /**
+     * 当前后端 .dat 的格式版本号。
+     * v1 起：单 long 饱和计数（不再写 {@code *Overflow} 双 long 溢出寄存器），并在顶层写入本字段。
+     * 旧档（预优化时期）没有该字段，读取时 {@link #readVersion} 保持 0，据此判定“需要迁移”。
+     */
+    public static final int FORMAT_VERSION = 1;
+
     private final Map<IStorageChannel<?>, ChannelData<?>> channels = new HashMap<>();
+
+    /**
+     * 上一次 {@link #readFromNBT} 读到的档案格式版本；内存中新建（非落盘读入）的实例默认视为当前版本。
+     * 旧档无 {@code FormatVersion} 键 → 读作 0 → {@link #needsMigration()} 为真。
+     */
+    private transient int readVersion = FORMAT_VERSION;
 
     public AdvancedCellData(String name)
     {
         super(name);
+    }
+
+    /**
+     * @return 该后端是否为旧格式、需要用 {@code /infinitycell migrate} 回写升级
+     *         （读到的版本低于 {@link #FORMAT_VERSION}）。
+     */
+    public boolean needsMigration()
+    {
+        return readVersion < FORMAT_VERSION;
     }
 
     /**
@@ -282,6 +304,7 @@ public class AdvancedCellData extends WorldSavedData
         }
 
         nbt.setTag("Channels", channelList);
+        nbt.setInteger("FormatVersion", FORMAT_VERSION);  // 落盘即打上当前格式版本，供后续迁移检测
         return nbt;
     }
 
@@ -289,6 +312,8 @@ public class AdvancedCellData extends WorldSavedData
     public void readFromNBT(NBTTagCompound nbt)
     {
         channels.clear();
+        // 旧档无此键 → getInteger 返回 0 → needsMigration() 判定需升级回写
+        this.readVersion = nbt.getInteger("FormatVersion");
         NBTTagList channelList = nbt.getTagList("Channels", 10);
 
         for (int i = 0; i < channelList.tagCount(); i++) {
