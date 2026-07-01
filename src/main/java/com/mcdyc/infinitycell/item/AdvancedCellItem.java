@@ -8,7 +8,6 @@ import appeng.util.Platform;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.Entity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -20,7 +19,6 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 核心存储元件物品类。
@@ -92,24 +90,10 @@ public class AdvancedCellItem extends Item implements appeng.api.implementations
         this.setTranslationKey(registryName);
     }
 
-    /**
-     * 每 tick 检查：当物品在玩家背包中时，懒分配 UUID
-     * 这样创造模式物品栏里的物品不会提前获得 UUID
-     */
-    @Override
-    public void onUpdate(ItemStack stack, World worldIn, Entity entityIn, int itemSlot, boolean isSelected)
-    {
-        if (!worldIn.isRemote && stack.getCount() > 0) {
-            NBTTagCompound nbt = stack.getTagCompound();
-            if (nbt == null || !nbt.hasKey("disk_uuid")) {
-                if (nbt == null) {
-                    nbt = new NBTTagCompound();
-                    stack.setTagCompound(nbt);
-                }
-                nbt.setString("disk_uuid", UUID.randomUUID().toString());
-            }
-        }
-    }
+    // UUID 懒分配策略：不再在 onUpdate 里每 tick 急切分配。
+    // disk_uuid 仅在元件首次被真正写入（AbstractAdvancedCellInventory#getDataForMutation）时生成，
+    // 这样从未存过东西的元件（含被当作合成材料的）永不产生 UUID 与后端文件，
+    // 收窄了复制串号与孤儿文件的暴露面（仿 AE2Things / OMNI 的 lazy-on-first-insert）。
 
 
     /**
