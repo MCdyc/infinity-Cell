@@ -69,12 +69,55 @@ public class InfinityCell
     @Mod.EventHandler
     public void init(FMLInitializationEvent event)
     {
-        // 注册自定义存储元件处理器。
-        // 用 AE2 公开 API 追加即可：本模组的 isCell 只认 AdvancedCellItem，与内置 BasicCellHandler 完全不相交，
-        // 排在其后不影响拦截；AE2UEL 还会校验 index 0 恒为内置 handler，故无需（也不应）反射插队。
+        // 注册自定义存储元件处理器——必须【前插到 index 0】，不能用 addCellHandler 追加。
+        //
+        // 原因：AdvancedCellItem 实现了 IStorageCell 且 storableInStorageCell()==false，
+        // 而 AE2UEL 内置 BasicCellHandler.isCell → BasicCellInventory.isCell 对【任何】这样的
+        // IStorageCell 都返回 true——即内置 handler 的 isCell 与本模组的元件完全重叠。
+        // CellRegistry.getCellInventory 按列表顺序返回第一个 isCell 命中的 handler，而
+        // addCellHandler 只会追加到末尾，且 AE2UEL 用 Verify 把 index 0 永久钉死为内置
+        // BasicCellHandler。于是若只追加，内置 handler 永远抢先接管本模组元件，用 stock
+        // BasicCellInventoryHandler 构造时调用 getUpgradesInventory(stack).getSlots()，
+        // 而本模组返回 null → NPE 崩服（TileDrive.updateState 加载即崩）。
+        //
+        // 解法：反射把 AdvancedCellHandler 塞到 handlers 列表最前。由于它 extends
+        // BasicCellHandler，index 0 的 instanceof 校验依旧通过；其窄口径 isCell（只认
+        // AdvancedCellItem）先命中我们的元件，内置 handler 退居 index 1 继续接管原版盘。
         appeng.api.storage.ICellRegistry cellRegistry = AEApi.instance().registries().cell();
-        cellRegistry.addCellHandler(new AdvancedCellHandler());
-        LOGGER.info("成功挂载 Advanced 多阶梯硬盘存取拦截安检门！");
+        AdvancedCellHandler handler = new AdvancedCellHandler();
+        boolean injected = false;
+        try {
+            for (java.lang.reflect.Field field : cellRegistry.getClass().getDeclaredFields()) {
+                if (!java.util.List.class.isAssignableFrom(field.getType())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                Object value = field.get(cellRegistry);
+                if (!(value instanceof java.util.List)) {
+                    continue;
+                }
+                @SuppressWarnings("unchecked")
+                java.util.List<appeng.api.storage.ICellHandler> handlers =
+                        (java.util.List<appeng.api.storage.ICellHandler>) value;
+                // 只认承载 ICellHandler 的那个列表（另一个 List 字段是 guiHandlers，此时为空），
+                // 其 index 0 此刻恒为内置 BasicCellHandler。
+                if (!handlers.isEmpty()
+                        && handlers.get(0) instanceof appeng.core.features.registries.cell.BasicCellHandler) {
+                    handlers.add(0, handler);
+                    injected = true;
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("反射前插 Advanced 处理器失败，回退 addCellHandler。", e);
+        }
+        if (injected) {
+            LOGGER.info("成功前插 Advanced 多阶梯硬盘存取拦截安检门（index 0）！");
+        } else {
+            // 回退：至少注册上，但内置 handler 会抢先接管——功能受限，仅避免完全失效。
+            cellRegistry.addCellHandler(handler);
+            LOGGER.warn("Advanced 处理器只能追加到末尾——内置 BasicCellHandler 可能抢先接管本模组元件！");
+        }
     }
 
     /**
